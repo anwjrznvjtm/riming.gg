@@ -20,6 +20,9 @@ export function getChosung(str: string): string {
 
 // Common Korean LoL Champion Nicknames / Abbreviations
 export const CHAMPION_ALIASES: Record<string, string> = {
+  '유나라': '유나라',
+  '유나': '유나라',
+  '유': '유나라',
   '자르반': '자르반 4세',
   '자르반4세': '자르반 4세',
   '자르반4': '자르반 4세',
@@ -59,6 +62,7 @@ export function searchChampions(rawQuery: string, sourceList: string[] = CHAMPIO
   if (!rawQuery || !rawQuery.trim()) return [];
   const query = rawQuery.trim().toLowerCase();
   const cleanQuery = query.replace(/\s+/g, '');
+  const isChosungQuery = /^[ㄱ-ㅎ]+$/.test(cleanQuery);
   const queryChosung = getChosung(cleanQuery);
 
   // Check direct alias first
@@ -81,14 +85,14 @@ export function searchChampions(rawQuery: string, sourceList: string[] = CHAMPIO
       score = 700 - cleanChamp.length;
     } else if (cleanChamp.includes(cleanQuery)) {
       score = 500 - cleanChamp.indexOf(cleanQuery);
-    } else if (queryChosung.length > 0 && champChosung.startsWith(queryChosung)) {
+    } else if (isChosungQuery && queryChosung.length > 0 && champChosung.startsWith(queryChosung)) {
       score = 400 - champChosung.length;
-    } else if (queryChosung.length > 0 && champChosung.includes(queryChosung)) {
+    } else if (isChosungQuery && queryChosung.length > 0 && champChosung.includes(queryChosung)) {
       score = 300 - champChosung.indexOf(queryChosung);
     } else {
       // Check if alias starts with query
       for (const [alias, target] of Object.entries(CHAMPION_ALIASES)) {
-        if (target === champ && alias.startsWith(cleanQuery)) {
+        if (target === champ && (alias.startsWith(cleanQuery) || alias === cleanQuery)) {
           score = 350;
           break;
         }

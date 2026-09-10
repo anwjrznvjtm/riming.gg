@@ -147,6 +147,11 @@ export const CHAMPION_DDRAGON_MAP: Record<string, string> = {
   '우디르': 'Udyr',
   '우르곳': 'Urgot',
   '워윅': 'Warwick',
+  '유나라': 'Yunara',
+  '유나': 'Yunara',
+  '유': 'Yunara',
+  'Yunara': 'Yunara',
+  'yunara': 'Yunara',
   '유미': 'Yuumi',
   '이렐리아': 'Irelia',
   '이렐': 'Irelia',
@@ -224,11 +229,22 @@ export const CHAMPION_DDRAGON_MAP: Record<string, string> = {
   '흐웨이': 'Hwei',
 };
 
-export const DDRAGON_VERSION = '15.4.1';
+export const DDRAGON_VERSION = '16.18.1';
+
+export function normalizeChampionName(champName?: string | null): string {
+  if (!champName) return '';
+  const trimmed = champName.trim();
+  const clean = trimmed.replace(/\s+/g, '');
+  if (clean === '유' || clean === '유나' || clean === '유나라' || clean.toLowerCase() === 'yunara') {
+    return '유나라';
+  }
+  return trimmed;
+}
 
 export function getChampionKey(champName?: string): string | null {
   if (!champName) return null;
-  const trimmed = champName.trim();
+  const normalized = normalizeChampionName(champName);
+  const trimmed = normalized.trim();
   const clean = trimmed.replace(/\s+/g, '');
   if (CHAMPION_DDRAGON_MAP[trimmed]) return CHAMPION_DDRAGON_MAP[trimmed];
   if (CHAMPION_DDRAGON_MAP[clean]) return CHAMPION_DDRAGON_MAP[clean];
@@ -258,7 +274,7 @@ export function getChampionIconUrl(champName?: string): string | null {
 export function getChampionFallbackUrl(champName?: string): string | null {
   const key = getChampionKey(champName);
   if (!key) return null;
-  return `https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/${key}.png`;
+  return `https://ddragon.leagueoflegends.com/cdn/15.20.1/img/champion/${key}.png`;
 }
 
 // Spells
