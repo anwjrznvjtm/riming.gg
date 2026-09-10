@@ -224,13 +224,41 @@ export const CHAMPION_DDRAGON_MAP: Record<string, string> = {
   '흐웨이': 'Hwei',
 };
 
-export function getChampionIconUrl(champName?: string): string | null {
+export const DDRAGON_VERSION = '15.4.1';
+
+export function getChampionKey(champName?: string): string | null {
   if (!champName) return null;
   const trimmed = champName.trim();
   const clean = trimmed.replace(/\s+/g, '');
-  const key = CHAMPION_DDRAGON_MAP[trimmed] || CHAMPION_DDRAGON_MAP[clean];
+  if (CHAMPION_DDRAGON_MAP[trimmed]) return CHAMPION_DDRAGON_MAP[trimmed];
+  if (CHAMPION_DDRAGON_MAP[clean]) return CHAMPION_DDRAGON_MAP[clean];
+
+  // Try case-insensitive lookup in CHAMPION_DDRAGON_MAP values (English keys)
+  const lower = clean.toLowerCase();
+  for (const [k, v] of Object.entries(CHAMPION_DDRAGON_MAP)) {
+    if (k.toLowerCase() === lower || v.toLowerCase() === lower) {
+      return v;
+    }
+  }
+
+  // If already starts with an English capital letter and looks like a champ key
+  if (/^[A-Za-z]+$/.test(clean)) {
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  }
+
+  return null;
+}
+
+export function getChampionIconUrl(champName?: string): string | null {
+  const key = getChampionKey(champName);
   if (!key) return null;
-  return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${key}.png`;
+  return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${key}.png`;
+}
+
+export function getChampionFallbackUrl(champName?: string): string | null {
+  const key = getChampionKey(champName);
+  if (!key) return null;
+  return `https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/${key}.png`;
 }
 
 // Spells

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Match, LineKey, MatchFormat, WinningTeam, LINE_KEYS, LINE_LABELS } from '../types';
 import { ComputedStats, formatPlayerWithChamp, isKdaEmpty, getWoorimingTeam, getWoorimingLine } from '../lib/stats';
 import { ChampionIcon } from './ChampionIcon';
-import { getPlayerLoadout, getItemIconUrl, parseKdaString } from '../lib/champions';
+import { parseKdaString } from '../lib/champions';
 import { PASSCODE } from '../data/initialMatches';
 import { Plus, Search, Filter, ShieldAlert, X, Edit2, Trash2, Eye, Save, AlertCircle, CheckCircle2, Sparkles, Trophy } from 'lucide-react';
 
@@ -442,7 +442,17 @@ export const JournalTab: React.FC<JournalTabProps> = ({
             const setNum = m.set_number || 1;
             const winningTeamText = m.winning_team === 'Red' ? 'RED팀' : 'BLUE팀';
 
-            const loadout = getPlayerLoadout(LINE_LABELS[wKey], champ);
+            const isWRed = wTeam === 'Red';
+            const allyTeamKey: WinningTeam = isWRed ? 'Red' : 'Blue';
+            const enemyTeamKey: WinningTeam = isWRed ? 'Blue' : 'Red';
+
+            const allyRoster = isWRed ? m.team_a : m.team_b;
+            const allyChamps = isWRed ? m.team_a_champs : m.team_b_champs;
+            const allyWon = m.winning_team === allyTeamKey;
+
+            const enemyRoster = isWRed ? m.team_b : m.team_a;
+            const enemyChamps = isWRed ? m.team_b_champs : m.team_a_champs;
+            const enemyWon = m.winning_team === enemyTeamKey;
 
             // 승/패에 따른 독립 카드 스타일 (배경 틴트, 테두리, 그림자)
             const cardBgClass = won
@@ -464,7 +474,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${accentBarClass}`} />
 
                 <div className="p-3.5 pl-5 md:p-4.5 md:pl-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                  {/* 1. [왼쪽 영역] 날짜, CK명, 승/패 결과 뱃지, 세트 스코어 (image_1.png 참고) */}
+                  {/* 1. [왼쪽 영역] 날짜, CK명, 승/패 결과 뱃지, 세트 스코어 */}
                   <div className="flex xl:flex-col justify-between xl:justify-center items-start gap-1 min-w-[140px] xl:w-[150px] border-b xl:border-b-0 xl:border-r border-white/10 pb-3 xl:pb-0 xl:pr-4 shrink-0">
                     <div className="space-y-0.5">
                       <div className="text-[11px] font-bold text-[#8a8aa0] tracking-wider uppercase">
@@ -498,90 +508,51 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. [중앙 영역] 우리밍_ 선수 정보 강조 (OP.GG / image_1.png 참고) */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1 xl:px-3">
-                    {/* [챔피언 아이콘 (정사각형, 크게)] + [스펠 아이콘 2개] + [룬 아이콘 2개] 그룹 */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="relative">
-                        <ChampionIcon
-                          name={champ || ''}
-                          size={54}
-                          shape="square"
-                          className="border-2 border-white/20 shadow-lg group-hover:scale-105 transition-transform"
-                        />
-                        <span
-                          className={`absolute -bottom-1 -right-1 text-[9px] font-black px-1 py-0.2 rounded shadow ${
-                            LINE_LABELS[wKey] === 'ADC'
-                              ? 'bg-[#8b5cf6] text-white'
-                              : 'bg-[#3b82f6] text-white'
-                          }`}
-                        >
-                          {LINE_LABELS[wKey]}
+                  {/* 2. [중앙 영역] 우리밍_ 핵심 정보 (챔피언 이미지 + KDA + 평점 + 우리밍_ 닉네임) */}
+                  <div className="flex items-center gap-4 flex-1 xl:px-4">
+                    {/* [챔피언 아이콘 (정사각형, 크게)] */}
+                    <div className="relative shrink-0">
+                      <ChampionIcon
+                        name={champ || ''}
+                        size={56}
+                        shape="square"
+                        className="border-2 border-white/20 shadow-md group-hover:scale-105 transition-transform"
+                      />
+                      <span
+                        className={`absolute -bottom-1 -right-1 text-[9px] font-black px-1.5 py-0.2 rounded shadow ${
+                          LINE_LABELS[wKey] === 'ADC'
+                            ? 'bg-[#8b5cf6] text-white'
+                            : 'bg-[#3b82f6] text-white'
+                        }`}
+                      >
+                        {LINE_LABELS[wKey]}
+                      </span>
+                    </div>
+
+                    {/* KDA + 평점 + 우리밍_ 닉네임 */}
+                    <div className="flex flex-col justify-center gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[13px] font-extrabold text-white tracking-tight flex items-center gap-1">
+                          <span className="text-[#fbbf24] text-[13px]">👑</span>
+                          우리밍_
+                        </span>
+                        <span className="text-[11px] text-[#8e8ea8] font-medium">
+                          ({champ || '챔피언 미지정'} · {LINE_LABELS[wKey]})
                         </span>
                       </div>
 
-                      {/* 스펠 2개 (세로) & 룬 2개 (세로) */}
-                      <div className="flex items-center gap-1">
-                        {/* 스펠 2개 */}
-                        <div className="flex flex-col gap-1">
-                          <img
-                            src={loadout.spells[0]}
-                            alt="spell 1"
-                            className="w-[24px] h-[24px] rounded-[5px] border border-white/20 object-cover shadow-sm"
-                            title="소환사 주문 1"
-                            loading="lazy"
-                          />
-                          <img
-                            src={loadout.spells[1]}
-                            alt="spell 2"
-                            className="w-[24px] h-[24px] rounded-[5px] border border-white/20 object-cover shadow-sm"
-                            title="소환사 주문 2"
-                            loading="lazy"
-                          />
-                        </div>
-
-                        {/* 룬 2개 */}
-                        <div className="flex flex-col gap-1">
-                          <div
-                            className="w-[24px] h-[24px] rounded-full bg-black/60 border border-white/20 flex items-center justify-center p-0.5 shadow-sm"
-                            title="핵심 룬"
-                          >
-                            <img
-                              src={loadout.runes[0]}
-                              alt="primary rune"
-                              className="w-[19px] h-[19px] object-contain"
-                              loading="lazy"
-                            />
-                          </div>
-                          <div
-                            className="w-[24px] h-[24px] rounded-full bg-black/60 border border-white/20 flex items-center justify-center p-1 shadow-sm"
-                            title="보조 룬"
-                          >
-                            <img
-                              src={loadout.runes[1]}
-                              alt="sub rune"
-                              className="w-[15px] h-[15px] object-contain opacity-90"
-                              loading="lazy"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* [KDA (큰 글씨)] + [평점 (소수점)] + [아이템 아이콘 7개 일렬] */}
-                    <div className="flex flex-col gap-2">
                       <div className="flex items-baseline gap-2.5 flex-wrap">
                         {/* KDA 큰 글씨 */}
                         {kdaInfo && kdaInfo.kills !== undefined ? (
-                          <div className="text-[17px] md:text-[18px] font-black tracking-wide text-white">
+                          <div className="text-[18px] md:text-[20px] font-black tracking-wide text-white">
                             <span>{kdaInfo.kills}</span>
-                            <span className="text-[#6a6a80] mx-1">/</span>
+                            <span className="text-[#6a6a80] mx-1 font-medium">/</span>
                             <span className="text-[#f87171]">{kdaInfo.deaths}</span>
-                            <span className="text-[#6a6a80] mx-1">/</span>
+                            <span className="text-[#6a6a80] mx-1 font-medium">/</span>
                             <span>{kdaInfo.assists}</span>
                           </div>
                         ) : (
-                          <div className="text-[16px] font-bold text-white">
+                          <div className="text-[17px] font-black text-white">
                             {kdaRaw && !isKdaEmpty(kdaRaw) ? `KDA ${kdaRaw}` : 'KDA -'}
                           </div>
                         )}
@@ -589,120 +560,103 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                         {/* 평점 */}
                         {kdaInfo && (
                           <span
-                            className={`text-[12px] font-bold ${
+                            className={`text-[12px] font-extrabold px-2 py-0.5 rounded-md ${
                               kdaInfo.isPerfect
-                                ? 'text-[#fbbf24]'
+                                ? 'bg-[#fbbf24]/20 text-[#fbbf24] border border-[#fbbf24]/40'
                                 : parseFloat(kdaInfo.ratioText) >= 3
-                                ? 'text-[#38bdf8]'
-                                : 'text-[#a0a0b8]'
+                                ? 'bg-[#38bdf8]/20 text-[#38bdf8] border border-[#38bdf8]/40'
+                                : 'bg-white/5 text-[#a0a0b8] border border-white/10'
                             }`}
                           >
                             {kdaInfo.ratioText} {kdaInfo.isPerfect ? '' : '평점'}
                           </span>
                         )}
-
-                        <span className="text-[11px] text-[#8a8aa0] font-semibold">
-                          우리밍_ ({champ || '챔피언 미지정'})
-                        </span>
-                      </div>
-
-                      {/* 아이템 아이콘 7개 (6코어 + 1장신구) 일렬 배치 */}
-                      <div className="flex items-center gap-1">
-                        {loadout.items.map((itemId, i) => (
-                          <div
-                            key={i}
-                            className="w-[24px] h-[24px] rounded-[4px] bg-[#090912] border border-white/15 overflow-hidden shadow-sm shrink-0 hover:scale-110 transition-transform"
-                          >
-                            <img
-                              src={getItemIconUrl(itemId)}
-                              alt={`item-${i}`}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
-                        ))}
-                        {/* 장신구 / 와드 */}
-                        <div
-                          className="w-[24px] h-[24px] rounded-full bg-[#090912] border border-[#a78bfa]/50 overflow-hidden shadow-sm shrink-0 ml-1 hover:scale-110 transition-transform"
-                          title="장신구"
-                        >
-                          <img
-                            src={getItemIconUrl(loadout.trinket)}
-                            alt="trinket"
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* 3. [오른쪽 영역] 10인 명단 전체 (5명씩 두 줄 Red팀/Blue팀 콤팩트 구성) */}
-                  <div className="bg-[#07070d]/80 border border-white/10 rounded-[12px] p-2.5 flex flex-col gap-2 min-w-[340px] xl:max-w-[420px]">
-                    {/* Red Team Row (5인) */}
-                    <div className="flex items-center gap-2">
-                      <div className="w-[52px] shrink-0 flex items-center gap-1">
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-[#ef4444]/20 text-[#f87171] border border-[#ef4444]/30">
-                          RED
-                        </span>
-                        {m.winning_team === 'Red' && <span className="text-[11px]">👑</span>}
-                      </div>
-
-                      <div className="grid grid-cols-5 gap-1.5 flex-1">
+                  {/* 3. [우측 영역] 10인 로스터 [아군팀 5명 세로 배치] VS [적팀 5명 세로 배치] (총 2열 5행) */}
+                  <div className="bg-[#07070d]/85 border border-white/10 rounded-[14px] p-2.5 sm:p-3 shrink-0">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      {/* 좌측 열: 아군팀 5명 */}
+                      <div className="flex flex-col gap-1 min-w-[130px] sm:min-w-[150px]">
+                        <div className="flex items-center justify-between pb-1 border-b border-white/10 mb-0.5">
+                          <span
+                            className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                              isWRed
+                                ? 'bg-[#ef4444]/20 text-[#f87171] border border-[#ef4444]/30'
+                                : 'bg-[#3b82f6]/20 text-[#60a5fa] border border-[#3b82f6]/30'
+                            }`}
+                          >
+                            아군팀 ({isWRed ? 'RED' : 'BLUE'})
+                          </span>
+                          {allyWon && (
+                            <span className="text-[10px] font-bold text-[#fbbf24] flex items-center gap-0.5">
+                              👑 승리
+                            </span>
+                          )}
+                        </div>
                         {LINE_KEYS.map((k) => {
-                          const pName = m.team_a[k];
-                          const pChamp = m.team_a_champs[k];
+                          const pName = allyRoster[k];
+                          const pChamp = allyChamps[k];
                           const isW = pName === '우리밍_';
                           return (
                             <div
                               key={k}
-                              className={`flex items-center gap-1 text-[11px] px-1 py-0.5 rounded min-w-0 transition ${
+                              className={`flex items-center gap-1.5 text-[11px] py-0.5 px-1.5 rounded transition ${
                                 isW
-                                  ? 'bg-[#8b5cf6]/25 border border-[#8b5cf6]/50 text-[#d8b4fe] font-bold shadow-sm'
-                                  : 'text-[#c0c0d0]'
+                                  ? 'bg-[#8b5cf6]/25 border border-[#8b5cf6]/50 text-[#f5d0fe] font-bold shadow-sm'
+                                  : 'text-[#c4c4d6]'
                               }`}
                               title={`${LINE_LABELS[k]}: ${pName || '-'} (${pChamp || '-'})`}
                             >
-                              <ChampionIcon name={pChamp || ''} size={15} shape="square" />
-                              <span className="truncate text-[11px]">
-                                {isW && <span className="text-[#fbbf24] mr-0.5">🌟</span>}
-                                {pName || '-'}
+                              <ChampionIcon name={pChamp || ''} size={18} shape="square" />
+                              <span className="text-[#6a6a80] text-[10px] font-semibold w-[22px] shrink-0">
+                                {LINE_LABELS[k]}
+                              </span>
+                              <span className="whitespace-nowrap flex items-center gap-1">
+                                {isW && <span className="text-[#fbbf24] text-[11px]">👑</span>}
+                                <span className={isW ? 'text-[#f5d0fe] font-black' : ''}>
+                                  {pName || '-'}
+                                </span>
                               </span>
                             </div>
                           );
                         })}
                       </div>
-                    </div>
 
-                    {/* Blue Team Row (5인) */}
-                    <div className="flex items-center gap-2 border-t border-white/5 pt-1.5">
-                      <div className="w-[52px] shrink-0 flex items-center gap-1">
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-[#3b82f6]/20 text-[#60a5fa] border border-[#3b82f6]/30">
-                          BLUE
-                        </span>
-                        {m.winning_team === 'Blue' && <span className="text-[11px]">👑</span>}
-                      </div>
-
-                      <div className="grid grid-cols-5 gap-1.5 flex-1">
+                      {/* 우측 열: 적팀 5명 */}
+                      <div className="flex flex-col gap-1 min-w-[130px] sm:min-w-[150px] pl-2.5 sm:pl-3 border-l border-white/10">
+                        <div className="flex items-center justify-between pb-1 border-b border-white/10 mb-0.5">
+                          <span
+                            className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                              !isWRed
+                                ? 'bg-[#ef4444]/20 text-[#f87171] border border-[#ef4444]/30'
+                                : 'bg-[#3b82f6]/20 text-[#60a5fa] border border-[#3b82f6]/30'
+                            }`}
+                          >
+                            적팀 ({!isWRed ? 'RED' : 'BLUE'})
+                          </span>
+                          {enemyWon && (
+                            <span className="text-[10px] font-bold text-[#fbbf24] flex items-center gap-0.5">
+                              👑 승리
+                            </span>
+                          )}
+                        </div>
                         {LINE_KEYS.map((k) => {
-                          const pName = m.team_b[k];
-                          const pChamp = m.team_b_champs[k];
-                          const isW = pName === '우리밍_';
+                          const pName = enemyRoster[k];
+                          const pChamp = enemyChamps[k];
                           return (
                             <div
                               key={k}
-                              className={`flex items-center gap-1 text-[11px] px-1 py-0.5 rounded min-w-0 transition ${
-                                isW
-                                  ? 'bg-[#8b5cf6]/25 border border-[#8b5cf6]/50 text-[#d8b4fe] font-bold shadow-sm'
-                                  : 'text-[#c0c0d0]'
-                              }`}
+                              className="flex items-center gap-1.5 text-[11px] py-0.5 px-1.5 rounded text-[#a5a5bb]"
                               title={`${LINE_LABELS[k]}: ${pName || '-'} (${pChamp || '-'})`}
                             >
-                              <ChampionIcon name={pChamp || ''} size={15} shape="square" />
-                              <span className="truncate text-[11px]">
-                                {isW && <span className="text-[#fbbf24] mr-0.5">🌟</span>}
-                                {pName || '-'}
+                              <ChampionIcon name={pChamp || ''} size={18} shape="square" />
+                              <span className="text-[#6a6a80] text-[10px] font-semibold w-[22px] shrink-0">
+                                {LINE_LABELS[k]}
                               </span>
+                              <span className="whitespace-nowrap">{pName || '-'}</span>
                             </div>
                           );
                         })}
