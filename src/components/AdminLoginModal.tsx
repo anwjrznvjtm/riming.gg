@@ -28,7 +28,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       setPasscode('');
       setError('');
     } else {
-      setError('패스코드가 올바르지 않습니다. (기본: riming2026)');
+      setError('패스코드가 올바르지 않습니다.');
     }
   };
 
@@ -50,7 +50,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         </div>
 
         <p className="text-[11px] text-[#8a8aa0] mb-3 leading-relaxed">
-          패스코드를 입력하면 24시간 동안 경기 추가, 수정, 삭제 권한이 유지됩니다. (기본: <code className="text-[#a78bfa]">riming2026</code>)
+          패스코드를 입력하면 24시간 동안 경기 추가, 수정, 삭제 권한이 유지됩니다.
         </p>
 
         <input

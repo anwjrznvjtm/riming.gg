@@ -162,12 +162,12 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     if (!isAdmin) {
       const cleanPass = formPasscode.trim().toLowerCase();
       if (!cleanPass) {
-        setFormError(`관리자 패스코드를 입력해주세요. (기본: ${PASSCODE})`);
+        setFormError('관리자 패스코드를 입력해주세요.');
         onToast('패스코드를 입력해주세요.');
         return;
       }
       if (cleanPass !== PASSCODE.toLowerCase()) {
-        setFormError(`패스코드가 올바르지 않습니다. (기본: ${PASSCODE})`);
+        setFormError('패스코드가 올바르지 않습니다.');
         onToast('패스코드가 올바르지 않습니다.');
         return;
       }
@@ -231,7 +231,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     if (!isAdmin) {
       const cleanPass = deletePasscode.trim().toLowerCase();
       if (cleanPass !== PASSCODE.toLowerCase()) {
-        setDeleteError(`패스코드가 올바르지 않습니다. (기본: ${PASSCODE})`);
+        setDeleteError('패스코드가 올바르지 않습니다.');
         return;
       }
       onAdminLoginSuccess();
@@ -922,7 +922,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleSaveMatch();
                     }}
-                    placeholder="패스코드 (기본: riming2026)"
+                    placeholder="패스코드"
                     className="h-[36px] flex-1 bg-[#08080c] border border-[#1e1e2a] rounded-full px-4 text-[12px] text-white placeholder:text-[#5a5a6a] focus:outline-none focus:border-[#8b5cf6]/50"
                   />
                   <label className="flex items-center gap-1 text-[11px] text-[#8a8aa0] cursor-pointer whitespace-nowrap">
@@ -1001,7 +1001,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleConfirmDelete();
                   }}
-                  placeholder="패스코드 (riming2026)"
+                  placeholder="패스코드"
                   className="w-full h-[38px] bg-[#08080c] border border-[#1e1e2a] rounded-full px-4 text-[12px] text-white focus:outline-none focus:border-[#ef4444]/50 mb-2"
                   autoFocus
                 />
