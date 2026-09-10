@@ -232,3 +232,167 @@ export function getChampionIconUrl(champName?: string): string | null {
   if (!key) return null;
   return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${key}.png`;
 }
+
+// Spells
+export const SPELL_ICONS: Record<string, string> = {
+  flash: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerFlash.png',
+  heal: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerHeal.png',
+  ghost: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerHaste.png',
+  cleanse: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerBoost.png',
+  ignite: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerDot.png',
+  exhaust: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerExhaust.png',
+  teleport: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerTeleport.png',
+  smite: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerSmite.png',
+  barrier: 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/spell/SummonerBarrier.png',
+};
+
+// Runes
+export const RUNE_ICONS = {
+  lethalTempo: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png',
+  pressTheAttack: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/PressTheAttack/PressTheAttack.png',
+  fleetFootwork: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/FleetFootwork/FleetFootwork.png',
+  conqueror: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/Conqueror/Conqueror.png',
+  electrocute: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/Electrocute/Electrocute.png',
+  darkHarvest: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Domination/DarkHarvest/DarkHarvest.png',
+  phaseRush: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/PhaseRush/PhaseRush.png',
+  arcaneComet: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/ArcaneComet/ArcaneComet.png',
+  summonAery: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/SummonAery/SummonAery.png',
+  firstStrike: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/FirstStrike/FirstStrike.png',
+  // Sub styles
+  subInspiration: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7203_Whimsy.png',
+  subSorcery: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7202_Sorcery.png',
+  subPrecision: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7201_Precision.png',
+  subResolve: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7204_Resolve.png',
+  subDomination: 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7200_Domination.png',
+};
+
+export function getItemIconUrl(itemId: number | string): string {
+  return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/${itemId}.png`;
+}
+
+// Recommended / representative loadout based on line & champ
+export function getPlayerLoadout(line: string, champName?: string) {
+  const upperLine = line.toUpperCase();
+  const c = champName?.trim() || '';
+
+  // Spells
+  let spells = [SPELL_ICONS.flash, SPELL_ICONS.heal];
+  if (upperLine === 'ADC') {
+    spells = [SPELL_ICONS.flash, SPELL_ICONS.ghost];
+    if (c.includes('정화') || c.includes('애쉬')) spells = [SPELL_ICONS.flash, SPELL_ICONS.cleanse];
+  } else if (upperLine === 'SUP') {
+    spells = [SPELL_ICONS.flash, SPELL_ICONS.ignite];
+  } else if (upperLine === 'JGL') {
+    spells = [SPELL_ICONS.flash, SPELL_ICONS.smite];
+  } else if (upperLine === 'TOP' || upperLine === 'MID') {
+    spells = [SPELL_ICONS.flash, SPELL_ICONS.teleport];
+  }
+
+  // Runes
+  let primaryRune = RUNE_ICONS.lethalTempo;
+  let subRune = RUNE_ICONS.subInspiration;
+
+  if (upperLine === 'SUP') {
+    primaryRune = RUNE_ICONS.summonAery;
+    subRune = RUNE_ICONS.subResolve;
+  } else if (upperLine === 'MID') {
+    primaryRune = RUNE_ICONS.arcaneComet;
+    subRune = RUNE_ICONS.subPrecision;
+  } else if (upperLine === 'TOP') {
+    primaryRune = RUNE_ICONS.conqueror;
+    subRune = RUNE_ICONS.subResolve;
+  } else if (upperLine === 'JGL') {
+    primaryRune = RUNE_ICONS.conqueror;
+    subRune = RUNE_ICONS.subInspiration;
+  } else {
+    // ADC
+    if (c.includes('진') || c.includes('미스포츈') || c.includes('미포')) {
+      primaryRune = RUNE_ICONS.fleetFootwork;
+      subRune = RUNE_ICONS.subSorcery;
+    } else if (c.includes('루시안') || c.includes('바루스')) {
+      primaryRune = RUNE_ICONS.pressTheAttack;
+      subRune = RUNE_ICONS.subInspiration;
+    }
+  }
+
+  // Items: 6 core/items + 1 trinket
+  let items = [3031, 3006, 3094, 3072, 3036, 3026]; // ADC default
+  let trinket = 3363; // Farsight Alteration
+
+  if (upperLine === 'SUP') {
+    items = [3857, 3009, 3190, 3109, 3107, 2055];
+    trinket = 3364; // Oracle Lens
+  } else if (upperLine === 'MID') {
+    items = [6655, 3020, 3157, 4645, 3089, 3135];
+    trinket = 3363;
+  } else if (upperLine === 'TOP' || upperLine === 'JGL') {
+    items = [3078, 3047, 3053, 3748, 3153, 6333];
+    trinket = 3340; // Stealth Ward
+  }
+
+  return {
+    spells,
+    runes: [primaryRune, subRune],
+    items,
+    trinket,
+  };
+}
+
+export interface ParsedKDA {
+  kills: number;
+  deaths: number;
+  assists: number;
+  scoreText: string;
+  ratioText: string;
+  isPerfect: boolean;
+}
+
+export function parseKdaString(kdaStr?: string): ParsedKDA | null {
+  if (!kdaStr || !kdaStr.trim()) return null;
+  const clean = kdaStr.trim();
+
+  // Pattern: "5/1/8" or "5 / 1 / 8" or "5-1-8"
+  const parts = clean.split(/[/\\-]/).map((s) => s.trim());
+  if (parts.length === 3) {
+    const kills = parseInt(parts[0], 10);
+    const deaths = parseInt(parts[1], 10);
+    const assists = parseInt(parts[2], 10);
+
+    if (!isNaN(kills) && !isNaN(deaths) && !isNaN(assists)) {
+      if (deaths === 0) {
+        return {
+          kills,
+          deaths,
+          assists,
+          scoreText: `${kills} / ${deaths} / ${assists}`,
+          ratioText: 'Perfect',
+          isPerfect: true,
+        };
+      }
+      const ratio = (kills + assists) / deaths;
+      return {
+        kills,
+        deaths,
+        assists,
+        scoreText: `${kills} / ${deaths} / ${assists}`,
+        ratioText: `${ratio.toFixed(2)}:1`,
+        isPerfect: false,
+      };
+    }
+  }
+
+  // Single number like "4.5"
+  const num = parseFloat(clean);
+  if (!isNaN(num)) {
+    return {
+      kills: 0,
+      deaths: 0,
+      assists: 0,
+      scoreText: clean,
+      ratioText: `${num.toFixed(2)}:1`,
+      isPerfect: false,
+    };
+  }
+
+  return null;
+}
