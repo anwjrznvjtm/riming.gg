@@ -62,6 +62,8 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [bgmVolume, setBgmVolume] = useState<number>(35);
   const ytPlayerRef = useRef<any>(null);
+  const isUserPausedRef = useRef<boolean>(false);
+  const hasInteractedRef = useRef<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -149,7 +151,9 @@ export default function App() {
                 } else {
                   event.target.unMute();
                 }
-                event.target.playVideo();
+                if (!isUserPausedRef.current) {
+                  event.target.playVideo();
+                }
               } catch (err) {}
             },
             onStateChange: (event: any) => {
@@ -160,7 +164,9 @@ export default function App() {
               } else if (event.data === 2) {
                 setIsBgmPlaying(false);
               } else if (event.data === 0) {
-                event.target.playVideo();
+                if (!isUserPausedRef.current) {
+                  event.target.playVideo();
+                }
               }
             },
             onError: (event: any) => {
@@ -202,9 +208,20 @@ export default function App() {
     };
   }, []);
 
-  // Unlock browser audio restrictions on user's first click or touch
+  // Unlock browser audio restrictions on user's first click or touch only
   useEffect(() => {
-    const handleGesture = () => {
+    if (hasInteractedRef.current) return;
+
+    const handleFirstGesture = () => {
+      if (hasInteractedRef.current) return;
+      hasInteractedRef.current = true;
+
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
+
+      if (isUserPausedRef.current) return;
+
       const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
       if (player && typeof player.playVideo === 'function') {
         try {
@@ -220,18 +237,19 @@ export default function App() {
       }
     };
 
-    window.addEventListener('click', handleGesture);
-    window.addEventListener('touchstart', handleGesture);
-    window.addEventListener('keydown', handleGesture);
+    window.addEventListener('click', handleFirstGesture, { passive: true });
+    window.addEventListener('touchstart', handleFirstGesture, { passive: true });
+    window.addEventListener('keydown', handleFirstGesture, { passive: true });
 
     return () => {
-      window.removeEventListener('click', handleGesture);
-      window.removeEventListener('touchstart', handleGesture);
-      window.removeEventListener('keydown', handleGesture);
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
     };
   }, [isMuted, bgmVolume]);
 
   const toggleBgm = () => {
+    hasInteractedRef.current = true;
     const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
     if (!player || typeof player.playVideo !== 'function') {
       setIsBgmPlaying((prev) => !prev);
@@ -241,10 +259,12 @@ export default function App() {
     try {
       const state = player.getPlayerState?.();
       if (state === 1) {
+        isUserPausedRef.current = true;
         player.pauseVideo();
         setIsBgmPlaying(false);
         showToast('BGM 일시정지');
       } else {
+        isUserPausedRef.current = false;
         if (isMuted) {
           setIsMuted(false);
           player.unMute();
@@ -263,6 +283,7 @@ export default function App() {
   };
 
   const toggleMute = () => {
+    hasInteractedRef.current = true;
     const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
     const nextMute = !isMuted;
     setIsMuted(nextMute);
@@ -275,10 +296,12 @@ export default function App() {
         player.unMute();
         player.setVolume(bgmVolume > 0 ? bgmVolume : 35);
         if (bgmVolume === 0) setBgmVolume(35);
-        const state = player.getPlayerState?.();
-        if (state !== 1) {
-          player.playVideo();
-          setIsBgmPlaying(true);
+        if (!isUserPausedRef.current) {
+          const state = player.getPlayerState?.();
+          if (state !== 1) {
+            player.playVideo();
+            setIsBgmPlaying(true);
+          }
         }
         showToast('음소거 해제 🔊');
       }
@@ -297,7 +320,7 @@ export default function App() {
         setIsMuted(false);
         player.unMute();
       }
-      if (val > 0) {
+      if (val > 0 && !isUserPausedRef.current) {
         const state = player.getPlayerState?.();
         if (state !== 1) {
           player.playVideo();
