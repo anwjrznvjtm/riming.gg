@@ -1,0 +1,8 @@
+{
+  "name": "RIMING.GG",
+  "description": "스트리머 롤CK 전적 관리, 라인별 시너지 분석, 승률 기반 최적 팀 빌더",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

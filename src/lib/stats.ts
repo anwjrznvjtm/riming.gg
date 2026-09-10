@@ -1,0 +1,341 @@
+import { Match, LineKey, LineName, ChampionStat, PartnerStat, LINE_KEYS, LINE_LABELS } from '../types';
+
+export function parseKda(kda?: string): { k: number; d: number; a: number } {
+  if (!kda || !kda.includes('/')) return { k: 0, d: 0, a: 0 };
+  const parts = kda.split('/').map((x) => parseInt(x.trim(), 10) || 0);
+  return { k: parts[0] || 0, d: parts[1] || 0, a: parts[2] || 0 };
+}
+
+export function formatPlayerWithChamp(player?: string, champ?: string): string {
+  if (!player) return '';
+  if (!champ) return player;
+  return `${player}(${champ})`;
+}
+
+export function isKdaEmpty(kda?: string): boolean {
+  if (!kda) return true;
+  const trimmed = kda.trim();
+  return trimmed === '' || trimmed === '0/0/0';
+}
+
+export function getWoorimingTeam(match: Match): 'Red' | 'Blue' {
+  return Object.values(match.team_a).includes('우리밍') ? 'Red' : 'Blue';
+}
+
+export function getWoorimingLine(match: Match): LineName | null {
+  const team = getWoorimingTeam(match);
+  const roster = team === 'Red' ? match.team_a : match.team_b;
+  for (const key of LINE_KEYS) {
+    if (roster[key] === '우리밍') {
+      return LINE_LABELS[key];
+    }
+  }
+  return null;
+}
+
+export function getCombinations<T>(arr: T[], k: number): T[][] {
+  const results: T[][] = [];
+  function backtrack(start: number, current: T[]) {
+    if (current.length === k) {
+      results.push([...current]);
+      return;
+    }
+    for (let i = start; i < arr.length; i++) {
+      current.push(arr[i]);
+      backtrack(i + 1, current);
+      current.pop();
+    }
+  }
+  backtrack(0, []);
+  return results;
+}
+
+export interface ComputedStats {
+  latestMonth: string;
+  overallWinrate: { total: number; wins: number; losses: number; winrate: number };
+  thisMonthWinrate: { total: number; wins: number; losses: number; winrate: number };
+  roleStats: {
+    adc: { games: number; wins: number; winrate: number };
+    sup: { games: number; wins: number; winrate: number };
+  };
+  monthlyStats: { month: string; games: number; wins: number; losses: number; winrate: number }[];
+  recentTenMatches: { match: Match; won: boolean }[];
+  mostBannedChamps: { champ: string; cnt: number; rate: number }[];
+  mostPickedChamps: ChampionStat[];
+  partnerStats: {
+    overall: { ADC: Record<string, PartnerStat>; SUP: Record<string, PartnerStat> };
+    thisMonth: { ADC: Record<string, PartnerStat>; SUP: Record<string, PartnerStat> };
+  };
+  pairWinrates: Map<string, { games: number; wins: number }>;
+  playerPrimaryLines: Record<string, LineName>;
+  dominantMonthRole: 'ADC' | 'SUP';
+}
+
+export function calculateStats(matches: Match[]): ComputedStats {
+  const latestMonth = matches.length
+    ? matches.map((m) => m.date.slice(0, 7)).sort().reverse()[0]
+    : '2026-09';
+
+  const thisMonthMatches = matches.filter((m) => m.date.startsWith(latestMonth));
+
+  function calcWl(list: Match[]) {
+    let wins = 0;
+    for (const m of list) {
+      const wTeam = getWoorimingTeam(m);
+      if (m.winning_team === wTeam) wins++;
+    }
+    const total = list.length;
+    return { total, wins, losses: total - wins, winrate: total ? (wins / total) * 100 : 0 };
+  }
+
+  const overallWinrate = calcWl(matches);
+  const thisMonthWinrate = calcWl(thisMonthMatches);
+
+  let adcGames = 0, adcWins = 0;
+  let supGames = 0, supWins = 0;
+
+  for (const m of matches) {
+    const wTeam = getWoorimingTeam(m);
+    const line = getWoorimingLine(m);
+    const won = m.winning_team === wTeam;
+    if (line === 'ADC') {
+      adcGames++;
+      if (won) adcWins++;
+    } else if (line === 'SUP') {
+      supGames++;
+      if (won) supWins++;
+    }
+  }
+
+  const roleStats = {
+    adc: { games: adcGames, wins: adcWins, winrate: adcGames ? (adcWins / adcGames) * 100 : 0 },
+    sup: { games: supGames, wins: supWins, winrate: supGames ? (supWins / supGames) * 100 : 0 },
+  };
+
+  // Monthly stats
+  const monthlyMap: Record<string, { games: number; wins: number }> = {};
+  for (const m of matches) {
+    const month = m.date.slice(0, 7);
+    if (!monthlyMap[month]) monthlyMap[month] = { games: 0, wins: 0 };
+    monthlyMap[month].games++;
+    if (m.winning_team === getWoorimingTeam(m)) monthlyMap[month].wins++;
+  }
+
+  const monthlyStats = Object.entries(monthlyMap)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([month, data]) => ({
+      month,
+      games: data.games,
+      wins: data.wins,
+      losses: data.games - data.wins,
+      winrate: data.games ? (data.wins / data.games) * 100 : 0,
+    }));
+
+  // Recent 10 matches (ordered from oldest to newest for the timeline display)
+  const sortedByDateAsc = [...matches].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  const recentTenMatches = sortedByDateAsc.slice(-10).map((m) => ({
+    match: m,
+    won: m.winning_team === getWoorimingTeam(m),
+  }));
+
+  // Most banned
+  const banCounts: Record<string, number> = {};
+  for (const m of matches) {
+    for (const b of [...m.ban_a, ...m.ban_b]) {
+      if (!b) continue;
+      banCounts[b] = (banCounts[b] || 0) + 1;
+    }
+  }
+  const mostBannedChamps = Object.entries(banCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([champ, cnt]) => ({
+      champ,
+      cnt,
+      rate: matches.length ? (cnt / matches.length) * 100 : 0,
+    }));
+
+  // Most picked by 우리밍
+  const pickMap: Record<string, { picks: number; wins: number; losses: number; kSum: number; dSum: number; aSum: number; kdaCount: number }> = {};
+  for (const m of matches) {
+    const wTeam = getWoorimingTeam(m);
+    const roster = wTeam === 'Red' ? m.team_a : m.team_b;
+    const champs = wTeam === 'Red' ? m.team_a_champs : m.team_b_champs;
+    const kdas = wTeam === 'Red' ? m.team_a_kda : m.team_b_kda;
+    let wKey: LineKey | null = null;
+    for (const k of LINE_KEYS) {
+      if (roster[k] === '우리밍') {
+        wKey = k;
+        break;
+      }
+    }
+    if (!wKey) continue;
+    const champ = champs[wKey];
+    const kda = kdas[wKey];
+    if (!champ) continue;
+
+    if (!pickMap[champ]) {
+      pickMap[champ] = { picks: 0, wins: 0, losses: 0, kSum: 0, dSum: 0, aSum: 0, kdaCount: 0 };
+    }
+    pickMap[champ].picks++;
+    if (m.winning_team === wTeam) pickMap[champ].wins++;
+    else pickMap[champ].losses++;
+
+    if (!isKdaEmpty(kda)) {
+      const parsed = parseKda(kda);
+      pickMap[champ].kSum += parsed.k;
+      pickMap[champ].dSum += parsed.d;
+      pickMap[champ].aSum += parsed.a;
+      pickMap[champ].kdaCount++;
+    }
+  }
+
+  const mostPickedChamps: ChampionStat[] = Object.entries(pickMap)
+    .map(([champ, data]) => ({
+      champ,
+      picks: data.picks,
+      wins: data.wins,
+      losses: data.losses,
+      winrate: data.picks ? (data.wins / data.picks) * 100 : 0,
+      kSum: data.kSum,
+      dSum: data.dSum,
+      aSum: data.aSum,
+      kdaCount: data.kdaCount,
+      avgKDA: data.kdaCount
+        ? `${(data.kSum / data.kdaCount).toFixed(1)}/${(data.dSum / data.kdaCount).toFixed(1)}/${(data.aSum / data.kdaCount).toFixed(1)}`
+        : '',
+    }))
+    .sort((a, b) => b.picks - a.picks);
+
+  // Partner stats (Line synergy)
+  function computePartners(list: Match[]) {
+    const adcPartners: Record<string, PartnerStat> = {};
+    const supPartners: Record<string, PartnerStat> = {};
+
+    for (const m of list) {
+      const wTeam = getWoorimingTeam(m);
+      const roster = wTeam === 'Red' ? m.team_a : m.team_b;
+      let wKey: LineKey | null = null;
+      for (const k of LINE_KEYS) {
+        if (roster[k] === '우리밍') {
+          wKey = k;
+          break;
+        }
+      }
+      if (!wKey) continue;
+      const wLine = LINE_LABELS[wKey];
+      if (wLine !== 'ADC' && wLine !== 'SUP') continue;
+      const won = m.winning_team === wTeam;
+
+      for (const k of LINE_KEYS) {
+        if (k === wKey) continue;
+        const pName = roster[k];
+        if (!pName) continue;
+        const pLine = LINE_LABELS[k];
+        const compositeKey = `${pName}|${pLine}`;
+        const targetMap = wLine === 'ADC' ? adcPartners : supPartners;
+
+        if (!targetMap[compositeKey]) {
+          targetMap[compositeKey] = { name: pName, line: pLine, games: 0, wins: 0 };
+        }
+        targetMap[compositeKey].games++;
+        if (won) targetMap[compositeKey].wins++;
+      }
+    }
+    return { ADC: adcPartners, SUP: supPartners };
+  }
+
+  const partnerStats = {
+    overall: computePartners(matches),
+    thisMonth: computePartners(thisMonthMatches),
+  };
+
+  // Pair winrates (synergy among any two players on the same team)
+  const pairWinrates = new Map<string, { games: number; wins: number }>();
+  for (const m of matches) {
+    const teams = [
+      { players: Object.values(m.team_a), won: m.winning_team === 'Red' },
+      { players: Object.values(m.team_b), won: m.winning_team === 'Blue' },
+    ];
+    for (const t of teams) {
+      const validPlayers = t.players.filter(Boolean);
+      for (let i = 0; i < validPlayers.length; i++) {
+        for (let j = i + 1; j < validPlayers.length; j++) {
+          const key = [validPlayers[i], validPlayers[j]].sort().join('|');
+          const stat = pairWinrates.get(key) || { games: 0, wins: 0 };
+          stat.games++;
+          if (t.won) stat.wins++;
+          pairWinrates.set(key, stat);
+        }
+      }
+    }
+  }
+
+  // Player primary lines
+  const playerLineCounts: Record<string, Record<LineName, number>> = {};
+  for (const m of matches) {
+    const rosters = [m.team_a, m.team_b];
+    for (const r of rosters) {
+      for (const k of LINE_KEYS) {
+        const name = r[k];
+        if (!name) continue;
+        if (!playerLineCounts[name]) {
+          playerLineCounts[name] = { TOP: 0, JGL: 0, MID: 0, ADC: 0, SUP: 0 };
+        }
+        playerLineCounts[name][LINE_LABELS[k]]++;
+      }
+    }
+  }
+
+  const playerPrimaryLines: Record<string, LineName> = {};
+  for (const name in playerLineCounts) {
+    let topL: LineName = 'TOP';
+    let maxC = -1;
+    for (const l of ['TOP', 'JGL', 'MID', 'ADC', 'SUP'] as LineName[]) {
+      if (playerLineCounts[name][l] > maxC) {
+        maxC = playerLineCounts[name][l];
+        topL = l;
+      }
+    }
+    playerPrimaryLines[name] = topL;
+  }
+  playerPrimaryLines['우리밍'] = 'ADC';
+
+  // Dominant month role
+  let curMonthAdc = 0, curMonthSup = 0;
+  for (const m of thisMonthMatches) {
+    const l = getWoorimingLine(m);
+    if (l === 'ADC') curMonthAdc++;
+    else if (l === 'SUP') curMonthSup++;
+  }
+  const dominantMonthRole: 'ADC' | 'SUP' = curMonthAdc >= curMonthSup ? 'ADC' : 'SUP';
+
+  return {
+    latestMonth,
+    overallWinrate,
+    thisMonthWinrate,
+    roleStats,
+    monthlyStats,
+    recentTenMatches,
+    mostBannedChamps,
+    mostPickedChamps,
+    partnerStats,
+    pairWinrates,
+    playerPrimaryLines,
+    dominantMonthRole,
+  };
+}
+
+export function getPlayerSynergyRate(
+  p1: string,
+  p2: string,
+  pairMap: Map<string, { games: number; wins: number }>
+): number {
+  if (p1 === p2) return 1.0;
+  const key = [p1, p2].sort().join('|');
+  const stat = pairMap.get(key);
+  if (!stat || stat.games === 0) return 0.5;
+  return stat.wins / stat.games;
+}
