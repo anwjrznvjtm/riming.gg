@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Match, LineKey, LineName, TeamRoster, SynergyAnalysisResult, PartnerStat, LINE_KEYS, LINE_LABELS } from '../types';
-import { ComputedStats, getPlayerSynergyRate, getCombinations, WOORIMING, isWooriming } from '../lib/stats';
+import { ComputedStats, getPlayerSynergyRate, getCombinations, WOORIMING, isWooriming, getPlayerLineChampionStats } from '../lib/stats';
+import { ChampionIcon } from './ChampionIcon';
 import { Zap, Sparkles, RefreshCw, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MainTabProps {
@@ -339,42 +340,76 @@ export const MainTab: React.FC<MainTabProps> = ({
           </div>
 
           <div className="grid grid-cols-1 gap-2.5">
-            {bestPartners.map((item) => (
-              <div
-                key={item.line}
-                className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3 hover:border-[#8b5cf6]/30 transition"
-              >
-                <div className="flex justify-between items-center text-[10px] tracking-wider text-[#8a8aa0] font-semibold">
-                  <span>{item.line} 라인 Best</span>
-                </div>
-                {item.best ? (
-                  <>
-                    <div className="mt-1 flex justify-between items-center">
-                      <span className="text-[13px] font-bold text-white">
-                        {item.best.name}{' '}
-                        <span className="text-[11px] font-normal text-[#8a8aa0]">
-                          ({item.best.line})
+            {bestPartners.map((item) => {
+              const itemChamps = item.best
+                ? getPlayerLineChampionStats(item.best.name, item.line as LineName, matches).slice(0, 3)
+                : [];
+
+              return (
+                <div
+                  key={item.line}
+                  className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3 hover:border-[#8b5cf6]/30 transition"
+                >
+                  <div className="flex justify-between items-center text-[10px] tracking-wider text-[#8a8aa0] font-semibold">
+                    <span>{item.line} 라인 Best</span>
+                  </div>
+                  {item.best ? (
+                    <>
+                      <div className="mt-1 flex justify-between items-center">
+                        <span className="text-[13px] font-bold text-white">
+                          {item.best.name}{' '}
+                          <span className="text-[11px] font-normal text-[#8a8aa0]">
+                            ({item.best.line})
+                          </span>
                         </span>
-                      </span>
-                      <span className="text-[12px] text-[#8b5cf6] font-bold">
-                        {((item.best.wins / item.best.games) * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-[#c0c0d0]">
-                      {item.best.games}전 {item.best.wins}승 {item.best.games - item.best.wins}패
-                    </div>
-                    <div className="mt-1.5 h-[3px] bg-[#1e1e2a] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#8b5cf6]"
-                        style={{ width: `${(item.best.wins / item.best.games) * 100}%` }}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-1.5 text-[11px] text-[#5a5a6a]">승리 기록 없음</div>
-                )}
-              </div>
-            ))}
+                        <span className="text-[12px] text-[#8b5cf6] font-bold">
+                          {((item.best.wins / item.best.games) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-[#c0c0d0]">
+                        {item.best.games}전 {item.best.wins}승 {item.best.games - item.best.wins}패
+                      </div>
+                      <div className="mt-1.5 h-[3px] bg-[#1e1e2a] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#8b5cf6]"
+                          style={{ width: `${(item.best.wins / item.best.games) * 100}%` }}
+                        />
+                      </div>
+                      {itemChamps.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+                          <div className="text-[10px] text-[#8a8aa0] flex items-center justify-between">
+                            <span>{item.line} 모스트</span>
+                            <span className="text-[9px] text-[#a78bfa]">TOP {itemChamps.length}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {itemChamps.map((c) => (
+                              <div
+                                key={c.champ}
+                                className="inline-flex items-center gap-1 bg-[#12121c] border border-[#252538] px-1.5 py-0.5 rounded-[6px] text-[10px]"
+                                title={`${c.champ}: ${c.games}판 ${c.wins}승 ${c.losses}패 (${c.winrate.toFixed(0)}%)`}
+                              >
+                                <ChampionIcon name={c.champ} size={13} />
+                                <span className="font-semibold text-white truncate max-w-[50px]">{c.champ}</span>
+                                <span className="text-[#8a8aa0] text-[9px]">{c.games}판</span>
+                                <span
+                                  className={`text-[9px] font-bold ${
+                                    c.winrate >= 50 ? 'text-[#38bdf8]' : 'text-[#f87171]'
+                                  }`}
+                                >
+                                  ({c.winrate.toFixed(0)}%)
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="mt-1.5 text-[11px] text-[#5a5a6a]">승리 기록 없음</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

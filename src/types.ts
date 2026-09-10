@@ -49,6 +49,14 @@ export interface ChampionStat {
   kdaCount: number;
 }
 
+export interface PlayerChampionStat {
+  champ: string;
+  games: number;
+  wins: number;
+  losses: number;
+  winrate: number;
+}
+
 export interface PartnerStat {
   name: string;
   line: LineName;

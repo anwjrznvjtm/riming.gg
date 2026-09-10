@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Match, LineName, PartnerStat, LINE_KEYS, LINE_LABELS, LineKey } from '../types';
-import { ComputedStats, getWoorimingTeam, getWoorimingLineKey, isWooriming } from '../lib/stats';
+import { ComputedStats, getWoorimingTeam, getWoorimingLineKey, isWooriming, getPlayerLineChampionStats } from '../lib/stats';
+import { ChampionIcon } from './ChampionIcon';
 import { X, Trophy, TrendingDown, Users, ChevronRight, Calendar, Swords } from 'lucide-react';
 
 interface SynergyTabProps {
@@ -95,6 +96,9 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                   );
                 const worst = worstCandidates[0] || null;
 
+                const bestChamps = best ? getPlayerLineChampionStats(best.name, pLine, matches).slice(0, 3) : [];
+                const worstChamps = worst ? getPlayerLineChampionStats(worst.name, pLine, matches).slice(0, 3) : [];
+
                 return (
                   <div
                     key={pLine}
@@ -157,6 +161,41 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                               <div className="text-[11px] text-[#5a5a6a]">조건 만족 없음</div>
                             )}
                           </div>
+
+                          {/* Best Most Champions */}
+                          {best && bestChamps.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-[#10b981]/15 space-y-1">
+                              <div className="text-[10px] text-[#8a8aa0] flex items-center justify-between">
+                                <span>{pLine} 최다 플레이</span>
+                                <span className="text-[9px] text-[#10b981] font-medium">TOP {bestChamps.length}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {bestChamps.map((c) => (
+                                  <div
+                                    key={c.champ}
+                                    className="inline-flex items-center gap-1 bg-[#08080c] border border-[#10b981]/25 px-1.5 py-0.5 rounded-[6px] text-[10px]"
+                                    title={`${c.champ}: ${c.games}판 ${c.wins}승 ${c.losses}패 (${c.winrate.toFixed(0)}%)`}
+                                  >
+                                    <ChampionIcon name={c.champ} size={13} />
+                                    <span className="font-semibold text-white truncate max-w-[50px]">{c.champ}</span>
+                                    <span className="text-[#8a8aa0] text-[9px]">{c.games}판</span>
+                                    <span
+                                      className={`text-[9px] font-bold ${
+                                        c.winrate >= 50 ? 'text-[#34d399]' : 'text-[#f87171]'
+                                      }`}
+                                    >
+                                      ({c.winrate.toFixed(0)}%)
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {best && bestChamps.length === 0 && (
+                            <div className="mt-2 pt-2 border-t border-[#10b981]/15 text-[10px] text-[#6a6a80]">
+                              해당 라인 챔피언 기록 없음
+                            </div>
+                          )}
                         </div>
 
                         {/* WORST */}
@@ -198,6 +237,41 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                               <div className="text-[11px] text-[#5a5a6a]">조건 만족 없음</div>
                             )}
                           </div>
+
+                          {/* Worst Most Champions */}
+                          {worst && worstChamps.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-[#ef4444]/15 space-y-1">
+                              <div className="text-[10px] text-[#8a8aa0] flex items-center justify-between">
+                                <span>{pLine} 최다 플레이</span>
+                                <span className="text-[9px] text-[#ef4444] font-medium">TOP {worstChamps.length}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {worstChamps.map((c) => (
+                                  <div
+                                    key={c.champ}
+                                    className="inline-flex items-center gap-1 bg-[#08080c] border border-[#ef4444]/25 px-1.5 py-0.5 rounded-[6px] text-[10px]"
+                                    title={`${c.champ}: ${c.games}판 ${c.wins}승 ${c.losses}패 (${c.winrate.toFixed(0)}%)`}
+                                  >
+                                    <ChampionIcon name={c.champ} size={13} />
+                                    <span className="font-semibold text-white truncate max-w-[50px]">{c.champ}</span>
+                                    <span className="text-[#8a8aa0] text-[9px]">{c.games}판</span>
+                                    <span
+                                      className={`text-[9px] font-bold ${
+                                        c.winrate >= 50 ? 'text-[#34d399]' : 'text-[#f87171]'
+                                      }`}
+                                    >
+                                      ({c.winrate.toFixed(0)}%)
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {worst && worstChamps.length === 0 && (
+                            <div className="mt-2 pt-2 border-t border-[#ef4444]/15 text-[10px] text-[#6a6a80]">
+                              해당 라인 챔피언 기록 없음
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -220,7 +294,7 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
           onClick={() => setSelectedModal(null)}
         >
           <div
-            className="w-full max-w-[680px] bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 max-h-[88vh] overflow-y-auto shadow-2xl space-y-5"
+            className="w-full max-w-[880px] bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 max-h-[88vh] overflow-y-auto shadow-2xl space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -234,7 +308,7 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                   <span className="text-[#a78bfa]">{selectedModal.partnerLine} 파트너 상세 데이터</span>
                 </div>
                 <div className="text-[11px] text-[#8a8aa0] mt-1">
-                  파트너별 승률 랭킹 및 스트리머 클릭 시 함께 출전한 전적(경기 목록) 확인
+                  파트너별 승률 랭킹, 해당 라인 모스트 챔피언 TOP 3 및 스트리머 클릭 시 함께 출전한 전적(경기 목록) 확인
                 </div>
               </div>
               <button
@@ -251,114 +325,146 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
               <div className="text-[12px] font-bold text-white mb-2 flex items-center justify-between">
                 <span>파트너 랭킹 목록 (클릭하여 경기 목록 조회)</span>
                 <span className="text-[11px] text-[#8a8aa0] font-normal">
-                  승&gt;패: Best / 패&gt;승·0승: Worst
+                  승&gt;패: Best / 패&gt;승·0승: Worst • 모스트 챔피언 순
                 </span>
               </div>
               <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[14px] overflow-hidden">
-                <table className="w-full text-[12px]">
-                  <thead className="text-[#6a6a80] text-[11px] bg-[#0f0f18] border-b border-[#1e1e2a]">
-                    <tr>
-                      <th className="text-left p-2.5">순위</th>
-                      <th className="text-left p-2.5">스트리머</th>
-                      <th className="text-left p-2.5">구분</th>
-                      <th className="text-left p-2.5">전적</th>
-                      <th className="text-right p-2.5">승률</th>
-                      <th className="text-center p-2.5">경기 목록</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const partners = (Object.values(
-                        stats.partnerStats.overall[selectedModal.woorimingLine]
-                      ) as PartnerStat[])
-                        .filter((p) => p.line === selectedModal.partnerLine)
-                        .sort(
-                          (a, b) => b.wins / b.games - a.wins / a.games || b.wins - a.wins || b.games - a.games
-                        );
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead className="text-[#6a6a80] text-[11px] bg-[#0f0f18] border-b border-[#1e1e2a]">
+                      <tr>
+                        <th className="text-left p-2.5">순위</th>
+                        <th className="text-left p-2.5">스트리머</th>
+                        <th className="text-left p-2.5">구분</th>
+                        <th className="text-left p-2.5">전적</th>
+                        <th className="text-right p-2.5">승률</th>
+                        <th className="text-left p-2.5 min-w-[210px]">{selectedModal.partnerLine} 모스트 TOP 3</th>
+                        <th className="text-center p-2.5">경기 목록</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const partners = (Object.values(
+                          stats.partnerStats.overall[selectedModal.woorimingLine]
+                        ) as PartnerStat[])
+                          .filter((p) => p.line === selectedModal.partnerLine)
+                          .sort(
+                            (a, b) => b.wins / b.games - a.wins / a.games || b.wins - a.wins || b.games - a.games
+                          );
 
-                      if (partners.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan={6} className="p-6 text-center text-[#5a5a6a]">
-                              해당 포지션과 함께한 경기 기록이 없습니다.
-                            </td>
-                          </tr>
-                        );
-                      }
+                        if (partners.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={7} className="p-6 text-center text-[#5a5a6a]">
+                                해당 포지션과 함께한 경기 기록이 없습니다.
+                              </td>
+                            </tr>
+                          );
+                        }
 
-                      return partners.map((p, idx) => {
-                        const rate = (p.wins / p.games) * 100;
-                        const isSelected = selectedModal.selectedStreamer === p.name;
-                        const isBestCandidate = p.wins > 0 && p.wins > p.games - p.wins;
-                        const isWorstCandidate = p.wins === 0 || p.games - p.wins > p.wins;
+                        return partners.map((p, idx) => {
+                          const rate = (p.wins / p.games) * 100;
+                          const isSelected = selectedModal.selectedStreamer === p.name;
+                          const isBestCandidate = p.wins > 0 && p.wins > p.games - p.wins;
+                          const isWorstCandidate = p.wins === 0 || p.games - p.wins > p.wins;
+                          const pChamps = getPlayerLineChampionStats(p.name, selectedModal.partnerLine, matches).slice(0, 3);
 
-                        return (
-                          <tr
-                            key={p.name}
-                            onClick={() =>
-                              setSelectedModal((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      selectedStreamer: prev.selectedStreamer === p.name ? null : p.name,
-                                    }
-                                  : null
-                              )
-                            }
-                            className={`border-t border-[#1e1e2a] cursor-pointer transition ${
-                              isSelected
-                                ? 'bg-[#8b5cf6]/20 border-l-4 border-l-[#8b5cf6]'
-                                : 'hover:bg-[#1a1a26]'
-                            }`}
-                          >
-                            <td className="p-2.5 text-[#8a8aa0] font-medium">{idx + 1}</td>
-                            <td className="p-2.5 font-bold text-white flex items-center gap-1.5">
-                              <span>{p.name}</span>
-                              {isSelected && (
-                                <span className="text-[10px] bg-[#8b5cf6] text-white px-1.5 py-0.2 rounded font-normal">
-                                  선택됨
+                          return (
+                            <tr
+                              key={p.name}
+                              onClick={() =>
+                                setSelectedModal((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        selectedStreamer: prev.selectedStreamer === p.name ? null : p.name,
+                                      }
+                                    : null
+                                )
+                              }
+                              className={`border-t border-[#1e1e2a] cursor-pointer transition ${
+                                isSelected
+                                  ? 'bg-[#8b5cf6]/20 border-l-4 border-l-[#8b5cf6]'
+                                  : 'hover:bg-[#1a1a26]'
+                              }`}
+                            >
+                              <td className="p-2.5 text-[#8a8aa0] font-medium">{idx + 1}</td>
+                              <td className="p-2.5 font-bold text-white flex items-center gap-1.5">
+                                <span>{p.name}</span>
+                                {isSelected && (
+                                  <span className="text-[10px] bg-[#8b5cf6] text-white px-1.5 py-0.2 rounded font-normal">
+                                    선택됨
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5">
+                                {isBestCandidate ? (
+                                  <span className="text-[10px] font-semibold bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 px-1.5 py-0.5 rounded">
+                                    BEST
+                                  </span>
+                                ) : isWorstCandidate ? (
+                                  <span className="text-[10px] font-semibold bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/30 px-1.5 py-0.5 rounded">
+                                    WORST
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold bg-[#8a8aa0]/15 text-[#8a8aa0] px-1.5 py-0.5 rounded">
+                                    50%
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-[#c0c0d0]">
+                                {p.games}판 <span className="text-[#3b82f6] font-semibold">{p.wins}승</span>{' '}
+                                <span className="text-[#ef4444] font-semibold">{p.games - p.wins}패</span>
+                              </td>
+                              <td className="p-2.5 text-right">
+                                <span
+                                  className={`font-bold min-w-[36px] ${
+                                    rate >= 50 ? 'text-[#3b82f6]' : 'text-[#ef4444]'
+                                  }`}
+                                >
+                                  {rate.toFixed(0)}%
                                 </span>
-                              )}
-                            </td>
-                            <td className="p-2.5">
-                              {isBestCandidate ? (
-                                <span className="text-[10px] font-semibold bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 px-1.5 py-0.5 rounded">
-                                  BEST
+                              </td>
+                              <td className="p-2.5">
+                                {pChamps.length === 0 ? (
+                                  <span className="text-[11px] text-[#5a5a6a]">기록 없음</span>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {pChamps.map((c) => (
+                                      <div
+                                        key={c.champ}
+                                        className="inline-flex items-center gap-1 bg-[#12121c] border border-[#252538] hover:border-[#8b5cf6]/40 px-2 py-0.5 rounded-[7px] text-[11px] transition-colors"
+                                        title={`${c.champ}: ${c.games}판 ${c.wins}승 ${c.losses}패 (${c.winrate.toFixed(0)}%)`}
+                                      >
+                                        <ChampionIcon name={c.champ} size={15} />
+                                        <span className="font-semibold text-white">{c.champ}</span>
+                                        <span className="text-[#8a8aa0] text-[10px] ml-0.5">
+                                          {c.games}판
+                                        </span>
+                                        <span
+                                          className={`text-[10px] font-bold ${
+                                            c.winrate >= 50 ? 'text-[#38bdf8]' : 'text-[#f87171]'
+                                          }`}
+                                        >
+                                          ({c.winrate.toFixed(0)}%)
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <span className="text-[11px] text-[#a78bfa] underline hover:text-white">
+                                  {isSelected ? '접기 ▲' : '보기 ▼'}
                                 </span>
-                              ) : isWorstCandidate ? (
-                                <span className="text-[10px] font-semibold bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/30 px-1.5 py-0.5 rounded">
-                                  WORST
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-semibold bg-[#8a8aa0]/15 text-[#8a8aa0] px-1.5 py-0.5 rounded">
-                                  50%
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2.5 text-[#c0c0d0]">
-                              {p.games}판 <span className="text-[#3b82f6] font-semibold">{p.wins}승</span>{' '}
-                              <span className="text-[#ef4444] font-semibold">{p.games - p.wins}패</span>
-                            </td>
-                            <td className="p-2.5 text-right">
-                              <span
-                                className={`font-bold min-w-[36px] ${
-                                  rate >= 50 ? 'text-[#3b82f6]' : 'text-[#ef4444]'
-                                }`}
-                              >
-                                {rate.toFixed(0)}%
-                              </span>
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <span className="text-[11px] text-[#a78bfa] underline hover:text-white">
-                                {isSelected ? '접기 ▲' : '보기 ▼'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
@@ -433,16 +539,32 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                             </div>
 
                             <div className="text-[11px] text-[#c0c0d0] flex flex-wrap items-center gap-2">
-                              <span>
+                              <span className="inline-flex items-center gap-1">
                                 <strong className="text-[#8b5cf6]">우리밍_({LINE_LABELS[wKey]}):</strong>{' '}
-                                {wChamps[wKey] || '-'} {wKdas[wKey] ? `(${wKdas[wKey]})` : ''}
+                                {wChamps[wKey] ? (
+                                  <>
+                                    <ChampionIcon name={wChamps[wKey]} size={14} />
+                                    <span>{wChamps[wKey]}</span>
+                                  </>
+                                ) : (
+                                  <span>-</span>
+                                )}
+                                {wKdas[wKey] ? ` (${wKdas[wKey]})` : ''}
                               </span>
                               <span>•</span>
-                              <span>
+                              <span className="inline-flex items-center gap-1">
                                 <strong>
                                   {selectedModal.selectedStreamer}({selectedModal.partnerLine}):
                                 </strong>{' '}
-                                {wChamps[pKey] || '-'} {wKdas[pKey] ? `(${wKdas[pKey]})` : ''}
+                                {wChamps[pKey] ? (
+                                  <>
+                                    <ChampionIcon name={wChamps[pKey]} size={14} />
+                                    <span>{wChamps[pKey]}</span>
+                                  </>
+                                ) : (
+                                  <span>-</span>
+                                )}
+                                {wKdas[pKey] ? ` (${wKdas[pKey]})` : ''}
                               </span>
                             </div>
                           </div>

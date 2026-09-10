@@ -414,24 +414,27 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       </div>
 
       {/* Match Records Table */}
-      <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[16px] overflow-hidden">
+      <div className="bg-[#0e0e16]/70 border border-[#1e1e2a] rounded-[20px] p-3.5 md:p-5 shadow-inner">
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px] min-w-[900px]">
-            <thead className="bg-[#0f0f18] text-[#6a6a80] text-[11px] uppercase tracking-widest border-b border-[#1e1e2a]">
-              <tr>
-                <th className="text-left p-3 font-normal">날짜</th>
-                <th className="text-left p-3 font-normal">CK명</th>
-                <th className="text-left p-3 font-normal">우리밍_ 라인 (챔프 / KDA)</th>
-                <th className="text-left p-3 font-normal">🔴 Red팀 vs 🔵 Blue팀 명단</th>
-                <th className="text-left p-3 font-normal">밴</th>
-                <th className="text-left p-3 font-normal">승리</th>
-                <th className="text-left p-3 font-normal">관리</th>
+          <table className="w-full text-[12px] min-w-[960px] border-separate border-spacing-y-3.5">
+            <thead>
+              <tr className="text-[#717188] text-[11px] uppercase tracking-wider font-semibold">
+                <th className="text-left py-2 px-4 font-semibold">날짜</th>
+                <th className="text-left py-2 px-4 font-semibold">CK명</th>
+                <th className="text-left py-2 px-4 font-semibold">우리밍_ 라인 (챔프 / KDA)</th>
+                <th className="text-left py-2 px-4 font-semibold">🔴 Red팀 vs 🔵 Blue팀 명단</th>
+                <th className="text-left py-2 px-4 font-semibold">밴</th>
+                <th className="text-left py-2 px-4 font-semibold">승리 결과</th>
+                <th className="text-center py-2 px-4 font-semibold">관리</th>
               </tr>
             </thead>
             <tbody>
               {filteredMatches.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-[#5a5a6a]">
+                  <td
+                    colSpan={7}
+                    className="p-10 text-center text-[#62627a] bg-[#12121a]/80 border border-[#1e1e2a] rounded-[16px]"
+                  >
                     일치하는 경기 기록이 없습니다.
                   </td>
                 </tr>
@@ -455,67 +458,118 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   const won = m.winning_team === wTeam;
                   const format = m.match_format || '단판';
                   const setNum = m.set_number || 1;
-                  const isRedWin = m.winning_team === 'Red';
-
-                  // 승패 색상 직관화: 승리 시 '블루(파란색)', 패배 시 '레드(빨간색)' 스타일
-                  const rowStyle = won
-                    ? { backgroundColor: 'rgba(59,130,246,0.08)', borderLeft: '4px solid #3b82f6' }
-                    : { backgroundColor: 'rgba(239,68,68,0.08)', borderLeft: '4px solid #ef4444' };
-
                   const winningTeamText = m.winning_team === 'Red' ? 'RED팀' : 'BLUE팀';
+
+                  // 승/패에 따른 독립 카드 스타일 (배경 음영, 라운드 테두리, 그림자)
+                  const cardBgClass = won
+                    ? 'bg-gradient-to-r from-[#0d1b32]/90 via-[#0f172a]/90 to-[#0e1628]/90 group-hover:from-[#112444] group-hover:to-[#121c33]'
+                    : 'bg-gradient-to-r from-[#241016]/90 via-[#1c1015]/90 to-[#1a0f14]/90 group-hover:from-[#30151e] group-hover:to-[#24141b]';
+
+                  const cardBorderYClass = won
+                    ? 'border-y border-[#3b82f6]/35 group-hover:border-[#3b82f6]/60'
+                    : 'border-y border-[#ef4444]/35 group-hover:border-[#ef4444]/60';
+
+                  const firstTdClass = won
+                    ? 'border-l-4 border-l-[#3b82f6] border-y border-[#3b82f6]/35 group-hover:border-y-[#3b82f6]/60 rounded-l-[14px]'
+                    : 'border-l-4 border-l-[#ef4444] border-y border-[#ef4444]/35 group-hover:border-y-[#ef4444]/60 rounded-l-[14px]';
+
+                  const lastTdClass = won
+                    ? 'border-r border-y border-[#3b82f6]/35 group-hover:border-y-[#3b82f6]/60 group-hover:border-r-[#3b82f6]/60 rounded-r-[14px]'
+                    : 'border-r border-y border-[#ef4444]/35 group-hover:border-y-[#ef4444]/60 group-hover:border-r-[#ef4444]/60 rounded-r-[14px]';
+
+                  const cardShadowClass = won
+                    ? 'shadow-[0_4px_16px_rgba(0,0,0,0.35),0_0_15px_rgba(59,130,246,0.06)] group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.45),0_0_20px_rgba(59,130,246,0.12)]'
+                    : 'shadow-[0_4px_16px_rgba(0,0,0,0.35),0_0_15px_rgba(239,68,68,0.06)] group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.45),0_0_20px_rgba(239,68,68,0.12)]';
 
                   return (
                     <tr
                       key={m.id}
-                      className="border-t border-[#1e1e2a] hover:brightness-110 transition"
-                      style={rowStyle}
+                      className={`group transition-all duration-150 ${cardShadowClass}`}
                     >
-                      <td className="p-3 whitespace-nowrap text-[#a0a0b8] font-medium">{m.date}</td>
-                      <td className="p-3 max-w-[180px]">
-                        <div className="truncate font-semibold text-white">{m.ck_name}</div>
-                        <div className="mt-1 inline-flex text-[10px] bg-[#1e1e2a] border border-[#2a2a3a] text-[#8a8aa0] px-1.5 py-0.5 rounded-full">
-                          {format !== '단판' ? `${format} ${setNum}세트 • ` : '단판 • '}
-                          {winningTeamText} {m.score || '1:0'}
+                      {/* 1. 날짜 및 승패 뱃지 */}
+                      <td className={`p-4 pl-4 whitespace-nowrap align-middle ${cardBgClass} ${firstTdClass}`}>
+                        <div className="font-semibold text-[13px] text-white tracking-tight">
+                          {m.date}
+                        </div>
+                        <div
+                          className={`mt-1.5 inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-sm ${
+                            won
+                              ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
+                              : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${won ? 'bg-[#60a5fa]' : 'bg-[#f87171]'}`}
+                          />
+                          {won ? '우리밍 승' : '우리밍 패'}
                         </div>
                       </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
+
+                      {/* 2. CK명 및 세트/점수 */}
+                      <td className={`p-4 max-w-[190px] align-middle ${cardBgClass} ${cardBorderYClass}`}>
+                        <div className="truncate font-bold text-white text-[13px] group-hover:text-[#d8b4fe] transition-colors">
+                          {m.ck_name}
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] bg-[#161622] border border-[#26263a] text-[#8e8ea8] px-2 py-0.5 rounded-full font-medium">
+                            {format !== '단판' ? `${format} ${setNum}세트` : '단판'}
+                          </span>
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              m.winning_team === 'Red'
+                                ? 'bg-[#ef4444]/15 border-[#ef4444]/30 text-[#f87171]'
+                                : 'bg-[#3b82f6]/15 border-[#3b82f6]/30 text-[#60a5fa]'
+                            }`}
+                          >
+                            {winningTeamText} {m.score || '1:0'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 3. 우리밍_ 라인 / 챔프 / KDA */}
+                      <td className={`p-4 align-middle ${cardBgClass} ${cardBorderYClass}`}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
                               LINE_LABELS[wKey] === 'ADC'
-                                ? 'bg-[#8b5cf6]/20 text-[#a78bfa]'
-                                : 'bg-[#1e1e2a] text-[#8a8aa0]'
+                                ? 'bg-[#8b5cf6]/25 text-[#c4b5fd] border-[#8b5cf6]/50 shadow-[0_0_8px_rgba(139,92,246,0.2)]'
+                                : 'bg-[#1e1e2c] text-[#a0a0b8] border-[#2c2c40]'
                             }`}
                           >
                             {LINE_LABELS[wKey]}
                           </span>
-                          <span className="font-semibold text-white">{champ || '-'}</span>
+                          <span className="font-bold text-white text-[13px]">{champ || '-'}</span>
                           {!isKdaEmpty(kda) && (
-                            <span className="text-[#8a8aa0] text-[11px] font-medium">({kda})</span>
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#161622] text-[#c0c0d8] border border-[#262638]">
+                              KDA {kda}
+                            </span>
                           )}
-                          <span
-                            className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              won
-                                ? 'bg-[#3b82f6]/20 text-[#60a5fa] border border-[#3b82f6]/40'
-                                : 'bg-[#ef4444]/20 text-[#f87171] border border-[#ef4444]/40'
-                            }`}
-                          >
-                            {won ? '승' : '패'}
-                          </span>
                         </div>
                       </td>
-                      <td className="p-3">
-                        <div className="grid grid-cols-2 gap-2 max-w-[360px]">
+
+                      {/* 4. Red vs Blue 팀 명단 */}
+                      <td className={`p-4 align-middle ${cardBgClass} ${cardBorderYClass}`}>
+                        <div className="grid grid-cols-2 gap-2.5 max-w-[370px] bg-[#090910]/70 p-2.5 rounded-[12px] border border-white/5">
                           {/* Red Team */}
                           <div className="space-y-0.5">
-                            <div className="text-[10px] font-bold text-[#ef4444] flex items-center gap-1">
+                            <div className="text-[10px] font-bold text-[#f87171] flex items-center gap-1 mb-1">
                               <span>🔴 Red팀</span>
-                              {m.winning_team === 'Red' && <span>👑</span>}
+                              {m.winning_team === 'Red' && (
+                                <span className="text-[9px] bg-[#ef4444]/20 border border-[#ef4444]/40 text-[#fca5a5] px-1 rounded">
+                                  승리 👑
+                                </span>
+                              )}
                             </div>
                             {LINE_KEYS.map((k) => (
-                              <div key={k} className="text-[11px] truncate">
-                                <span className="text-[#5a5a6a] mr-1">{LINE_LABELS[k]}:</span>
-                                <span className={m.team_a[k] === '우리밍_' ? 'text-[#8b5cf6] font-bold' : 'text-[#c0c0d0]'}>
+                              <div key={k} className="text-[11px] truncate leading-tight">
+                                <span className="text-[#5a5a6a] mr-1 font-medium">{LINE_LABELS[k]}:</span>
+                                <span
+                                  className={
+                                    m.team_a[k] === '우리밍_'
+                                      ? 'text-[#c4b5fd] font-bold bg-[#8b5cf6]/20 px-1 rounded'
+                                      : 'text-[#c0c0d0]'
+                                  }
+                                >
                                   {formatPlayerWithChamp(m.team_a[k], m.team_a_champs[k])}
                                 </span>
                               </div>
@@ -524,14 +578,24 @@ export const JournalTab: React.FC<JournalTabProps> = ({
 
                           {/* Blue Team */}
                           <div className="space-y-0.5">
-                            <div className="text-[10px] font-bold text-[#3b82f6] flex items-center gap-1">
+                            <div className="text-[10px] font-bold text-[#60a5fa] flex items-center gap-1 mb-1">
                               <span>🔵 Blue팀</span>
-                              {m.winning_team === 'Blue' && <span>👑</span>}
+                              {m.winning_team === 'Blue' && (
+                                <span className="text-[9px] bg-[#3b82f6]/20 border border-[#3b82f6]/40 text-[#93c5fd] px-1 rounded">
+                                  승리 👑
+                                </span>
+                              )}
                             </div>
                             {LINE_KEYS.map((k) => (
-                              <div key={k} className="text-[11px] truncate">
-                                <span className="text-[#5a5a6a] mr-1">{LINE_LABELS[k]}:</span>
-                                <span className={m.team_b[k] === '우리밍_' ? 'text-[#8b5cf6] font-bold' : 'text-[#c0c0d0]'}>
+                              <div key={k} className="text-[11px] truncate leading-tight">
+                                <span className="text-[#5a5a6a] mr-1 font-medium">{LINE_LABELS[k]}:</span>
+                                <span
+                                  className={
+                                    m.team_b[k] === '우리밍_'
+                                      ? 'text-[#c4b5fd] font-bold bg-[#8b5cf6]/20 px-1 rounded'
+                                      : 'text-[#c0c0d0]'
+                                  }
+                                >
                                   {formatPlayerWithChamp(m.team_b[k], m.team_b_champs[k])}
                                 </span>
                               </div>
@@ -539,46 +603,60 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                           </div>
                         </div>
                       </td>
-                      <td className="p-3">
-                        <div className="text-[10px] space-y-1 text-[#8a8aa0]">
-                          <div>
-                            <span className="text-[#ef4444] font-semibold">Red:</span>{' '}
-                            {m.ban_a.filter(Boolean).join(', ') || '-'}
+
+                      {/* 5. 밴 목록 */}
+                      <td className={`p-4 align-middle ${cardBgClass} ${cardBorderYClass}`}>
+                        <div className="text-[11px] space-y-1.5 text-[#8a8aa0] min-w-[120px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#ef4444]/15 text-[#f87171] border border-[#ef4444]/30">
+                              RED
+                            </span>
+                            <span className="truncate max-w-[120px] text-[#a0a0b8]">
+                              {m.ban_a.filter(Boolean).join(', ') || '-'}
+                            </span>
                           </div>
-                          <div>
-                            <span className="text-[#3b82f6] font-semibold">Blue:</span>{' '}
-                            {m.ban_b.filter(Boolean).join(', ') || '-'}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#3b82f6]/15 text-[#60a5fa] border border-[#3b82f6]/30">
+                              BLUE
+                            </span>
+                            <span className="truncate max-w-[120px] text-[#a0a0b8]">
+                              {m.ban_b.filter(Boolean).join(', ') || '-'}
+                            </span>
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 whitespace-nowrap">
+
+                      {/* 6. 승리 결과 */}
+                      <td className={`p-4 whitespace-nowrap align-middle ${cardBgClass} ${cardBorderYClass}`}>
                         <span
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1.5 ${
+                          className={`px-3 py-1.5 rounded-[10px] text-[11px] font-extrabold inline-flex items-center gap-1.5 border shadow-sm ${
                             won
-                              ? 'bg-[#3b82f6]/15 text-[#60a5fa] border border-[#3b82f6]/30'
-                              : 'bg-[#ef4444]/15 text-[#f87171] border border-[#ef4444]/30'
+                              ? 'bg-[#3b82f6]/20 text-[#93c5fd] border-[#3b82f6]/40'
+                              : 'bg-[#ef4444]/20 text-[#fca5a5] border-[#ef4444]/40'
                           }`}
                         >
-                          {won ? '🔵' : '🔴'} {winningTeamText} {m.score || ''}
+                          {won ? '🔵 승리' : '🔴 패배'} ({winningTeamText})
                         </span>
                       </td>
-                      <td className="p-3 whitespace-nowrap">
-                        <div className="flex gap-1.5">
+
+                      {/* 7. 관리 버튼 */}
+                      <td className={`p-4 pr-4 whitespace-nowrap align-middle text-center ${cardBgClass} ${lastTdClass}`}>
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(m)}
-                            className="p-1.5 bg-[#1e1e2a] hover:bg-[#2a2a3a] text-[#a0a0b8] hover:text-white rounded-full transition"
-                            title="수정"
+                            className="p-2 bg-[#1b1b28] hover:bg-[#2c2c40] text-[#a0a0b8] hover:text-white rounded-lg transition border border-[#2a2a3e]"
+                            title="경기 수정"
                           >
-                            <Edit2 size={12} />
+                            <Edit2 size={13} />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteClick(m.id)}
-                            className="p-1.5 bg-[#2a1a1a] hover:bg-[#3a1a1a] text-[#ff8a8a] rounded-full transition"
-                            title="삭제"
+                            className="p-2 bg-[#2d161a] hover:bg-[#3d1e23] text-[#f87171] hover:text-[#fca5a5] rounded-lg transition border border-[#ef4444]/30"
+                            title="경기 삭제"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>

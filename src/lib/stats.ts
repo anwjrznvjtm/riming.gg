@@ -1,4 +1,4 @@
-import { Match, LineKey, LineName, ChampionStat, PartnerStat, LINE_KEYS, LINE_LABELS } from '../types';
+import { Match, LineKey, LineName, ChampionStat, PlayerChampionStat, PartnerStat, LINE_KEYS, LINE_LABELS } from '../types';
 
 export const WOORIMING = '우리밍_';
 
@@ -386,3 +386,71 @@ export function getPlayerSynergyRate(
   if (!stat || stat.games === 0) return 0.5;
   return stat.wins / stat.games;
 }
+
+export function getPlayerLineChampionStats(
+  playerName: string,
+  line: LineName,
+  matches: Match[]
+): PlayerChampionStat[] {
+  if (!playerName || !line || !matches || !matches.length) return [];
+  const cleanTarget = playerName.trim().replace(/\s+/g, '');
+  const isTargetW = isWooriming(playerName);
+
+  const matchPlayer = (p?: string) => {
+    if (!p) return false;
+    if (isTargetW) return isWooriming(p);
+    return p.trim().replace(/\s+/g, '') === cleanTarget;
+  };
+
+  const lineKey = (Object.keys(LINE_LABELS) as LineKey[]).find(
+    (k) => LINE_LABELS[k] === line
+  );
+  if (!lineKey) return [];
+
+  const champMap: Record<string, { games: number; wins: number; losses: number }> = {};
+
+  for (const m of matches) {
+    // Check Team A (Red)
+    if (matchPlayer(m.team_a?.[lineKey])) {
+      const champ = m.team_a_champs?.[lineKey]?.trim();
+      if (champ) {
+        if (!champMap[champ]) {
+          champMap[champ] = { games: 0, wins: 0, losses: 0 };
+        }
+        champMap[champ].games++;
+        if (m.winning_team === 'Red') {
+          champMap[champ].wins++;
+        } else {
+          champMap[champ].losses++;
+        }
+      }
+    }
+
+    // Check Team B (Blue)
+    if (matchPlayer(m.team_b?.[lineKey])) {
+      const champ = m.team_b_champs?.[lineKey]?.trim();
+      if (champ) {
+        if (!champMap[champ]) {
+          champMap[champ] = { games: 0, wins: 0, losses: 0 };
+        }
+        champMap[champ].games++;
+        if (m.winning_team === 'Blue') {
+          champMap[champ].wins++;
+        } else {
+          champMap[champ].losses++;
+        }
+      }
+    }
+  }
+
+  return Object.entries(champMap)
+    .map(([champ, data]) => ({
+      champ,
+      games: data.games,
+      wins: data.wins,
+      losses: data.losses,
+      winrate: data.games ? (data.wins / data.games) * 100 : 0,
+    }))
+    .sort((a, b) => b.games - a.games || b.winrate - a.winrate || b.wins - a.wins);
+}
+
