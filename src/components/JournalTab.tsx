@@ -44,7 +44,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     id: '',
     date: new Date().toISOString().slice(0, 10),
     ck_name: '',
-    team_a: { ...emptyRoster, adc: '우리밍' },
+    team_a: { ...emptyRoster, adc: '우리밍_' },
     team_b: { ...emptyRoster },
     team_a_champs: { ...emptyRoster },
     team_b_champs: { ...emptyRoster },
@@ -83,7 +83,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   const woorimingLocation = useMemo(() => {
     for (const teamKey of ['team_a', 'team_b'] as const) {
       for (const l of LINE_KEYS) {
-        if (formData[teamKey][l]?.trim() === '우리밍') {
+        if (formData[teamKey][l]?.trim() === '우리밍_') {
           return { team: teamKey, line: l };
         }
       }
@@ -97,13 +97,13 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       const nextA = { ...prev.team_a };
       const nextB = { ...prev.team_b };
       for (const l of LINE_KEYS) {
-        if (nextA[l]?.trim() === '우리밍') nextA[l] = '';
-        if (nextB[l]?.trim() === '우리밍') nextB[l] = '';
+        if (nextA[l]?.trim() === '우리밍_') nextA[l] = '';
+        if (nextB[l]?.trim() === '우리밍_') nextB[l] = '';
       }
       if (targetTeam === 'team_a') {
-        nextA[targetLine] = '우리밍';
+        nextA[targetLine] = '우리밍_';
       } else {
-        nextB[targetLine] = '우리밍';
+        nextB[targetLine] = '우리밍_';
       }
       return {
         ...prev,
@@ -120,7 +120,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       id: `m_${Date.now()}`,
       date: today,
       ck_name: '',
-      team_a: { ...emptyRoster, adc: '우리밍' }, // Default ouriming to Red ADC
+      team_a: { ...emptyRoster, adc: '우리밍_' }, // Default ouriming to Red ADC
       team_b: { ...emptyRoster },
       team_a_champs: { ...emptyRoster },
       team_b_champs: { ...emptyRoster },
@@ -181,15 +181,15 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       ...(Object.values(formData.team_a) as string[]),
       ...(Object.values(formData.team_b) as string[]),
     ];
-    const wCount = allPlayers.filter((p) => p && p.trim() === '우리밍').length;
+    const wCount = allPlayers.filter((p) => p && p.trim() === '우리밍_').length;
     if (wCount === 0) {
-      setFormError("양 팀 중 정확히 1개 라인에 '우리밍'을 지정해야 합니다. (상단 빠른 지정 버튼 클릭)");
-      onToast("우리밍을 라인에 배치해주세요.");
+      setFormError("양 팀 중 정확히 1개 라인에 '우리밍_'을 지정해야 합니다. (상단 빠른 지정 버튼 클릭)");
+      onToast("우리밍_을 라인에 배치해주세요.");
       return;
     }
     if (wCount > 1) {
-      setFormError(`우리밍이 ${wCount}곳에 중복으로 입력되어 있습니다. 1곳에만 지정해주세요.`);
-      onToast("우리밍이 중복 입력되었습니다.");
+      setFormError(`우리밍_이 ${wCount}곳에 중복으로 입력되어 있습니다. 1곳에만 지정해주세요.`);
+      onToast("우리밍_이 중복 입력되었습니다.");
       return;
     }
 
@@ -366,7 +366,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               <tr>
                 <th className="text-left p-3 font-normal">날짜</th>
                 <th className="text-left p-3 font-normal">CK명</th>
-                <th className="text-left p-3 font-normal">우리밍 라인 (챔프 / KDA)</th>
+                <th className="text-left p-3 font-normal">우리밍_ 라인 (챔프 / KDA)</th>
                 <th className="text-left p-3 font-normal">🔴 Red팀 vs 🔵 Blue팀 명단</th>
                 <th className="text-left p-3 font-normal">밴</th>
                 <th className="text-left p-3 font-normal">승리</th>
@@ -389,7 +389,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
 
                   let wKey: LineKey = 'adc';
                   for (const k of LINE_KEYS) {
-                    if (wRoster[k] === '우리밍') {
+                    if (wRoster[k] === '우리밍_') {
                       wKey = k;
                       break;
                     }
@@ -457,7 +457,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                             {LINE_KEYS.map((k) => (
                               <div key={k} className="text-[11px] truncate">
                                 <span className="text-[#5a5a6a] mr-1">{LINE_LABELS[k]}:</span>
-                                <span className={m.team_a[k] === '우리밍' ? 'text-[#8b5cf6] font-bold' : 'text-[#c0c0d0]'}>
+                                <span className={m.team_a[k] === '우리밍_' ? 'text-[#8b5cf6] font-bold' : 'text-[#c0c0d0]'}>
                                   {formatPlayerWithChamp(m.team_a[k], m.team_a_champs[k])}
                                 </span>
                               </div>
@@ -473,7 +473,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                             {LINE_KEYS.map((k) => (
                               <div key={k} className="text-[11px] truncate">
                                 <span className="text-[#5a5a6a] mr-1">{LINE_LABELS[k]}:</span>
-                                <span className={m.team_b[k] === '우리밍' ? 'text-[#8b5cf6] font-bold' : 'text-[#c0c0d0]'}>
+                                <span className={m.team_b[k] === '우리밍_' ? 'text-[#8b5cf6] font-bold' : 'text-[#c0c0d0]'}>
                                   {formatPlayerWithChamp(m.team_b[k], m.team_b_champs[k])}
                                 </span>
                               </div>
@@ -538,7 +538,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-[fadeIn_0.15s]">
           <div className="w-full max-w-[520px] bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-6 max-h-[80vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-[16px] text-white">우리밍 전체 챔피언 픽 통계</h3>
+              <h3 className="font-bold text-[16px] text-white">우리밍_ 전체 챔피언 픽 통계</h3>
               <button
                 type="button"
                 onClick={() => setIsChampsModalOpen(false)}
@@ -706,7 +706,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-bold text-white flex items-center gap-1.5">
                   <Sparkles size={14} className="text-[#a78bfa]" />
-                  <span>우리밍 배치 라인:</span>
+                  <span>우리밍_ 배치 라인:</span>
                 </span>
                 {woorimingLocation ? (
                   <span
@@ -797,13 +797,13 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                       {isRed ? '🔴 Red팀' : '🔵 Blue팀'} 로스터 (플레이어 / 챔피언 / KDA)
                     </span>
                     <span className="text-[10px] text-[#8a8aa0] font-normal">
-                      우리밍은 '밍' 버튼으로 빠른 선택 가능
+                      우리밍_은 '밍' 버튼으로 빠른 선택 가능
                     </span>
                   </div>
 
                   <div className="space-y-2">
                     {LINE_KEYS.map((lineKey) => {
-                      const isW = formData[teamKey][lineKey] === '우리밍';
+                      const isW = formData[teamKey][lineKey] === '우리밍_';
                       return (
                         <div key={lineKey} className="flex flex-wrap gap-2 items-center">
                           <span className="w-[36px] text-[11px] font-bold text-[#8a8aa0] tracking-widest">
@@ -853,7 +853,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                                 [kdaKey]: { ...prev[kdaKey], [lineKey]: e.target.value },
                               }))
                             }
-                            placeholder={isW ? 'K/D/A (우리밍)' : 'K/D/A (선택)'}
+                            placeholder={isW ? 'K/D/A (우리밍_)' : 'K/D/A (선택)'}
                             className={`h-[32px] w-[90px] bg-[#12121a] border rounded-full px-3 text-[11px] text-white focus:outline-none ${
                               isW
                                 ? 'border-[#8b5cf6] bg-[#8b5cf6]/10 font-bold'
