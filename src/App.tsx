@@ -454,7 +454,7 @@ export default function App() {
           />
         )}
 
-        {currentTab === 'synergy' && <SynergyTab stats={stats} />}
+        {currentTab === 'synergy' && <SynergyTab stats={stats} matches={matches} />}
 
         {currentTab === 'journal' && (
           <JournalTab

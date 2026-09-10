@@ -246,28 +246,83 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     <div className="space-y-6 animate-[fadeIn_0.2s]">
       {/* Top Banner Stats: Most Banned & Most Picked */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Most Banned */}
-        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
-          <h3 className="font-bold text-[14px] text-white mb-3 flex items-center justify-between">
-            <span>밴픽 TOP 5</span>
-            <span className="text-[11px] font-normal text-[#8a8aa0]">누적 밴 통계</span>
-          </h3>
-          <div className="space-y-2">
-            {stats.mostBannedChamps.slice(0, 5).map((item, idx) => (
-              <div
-                key={item.champ}
-                className="flex items-center justify-between bg-[#08080c] border border-[#1e1e2a] rounded-[10px] px-3.5 py-2"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[11px] text-[#6a6a80] font-bold w-[14px]">{idx + 1}</span>
-                  <span className="text-[13px] font-semibold text-white">{item.champ}</span>
-                </div>
-                <div className="text-right">
-                  <div className="text-[12px] font-medium text-[#c0c0d0]">{item.cnt}번 밴</div>
-                  <div className="text-[10px] text-[#8a8aa0]">{item.rate.toFixed(1)}% 밴률</div>
-                </div>
+        {/* Winrate Trend Card */}
+        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col justify-between">
+          <div>
+            <div className="text-[14px] font-bold mb-3 flex items-center justify-between text-white">
+              <span className="flex items-center gap-2">📊 승률 추이</span>
+              <span className="text-[11px] font-normal text-[#8a8aa0]">2026 시즌</span>
+            </div>
+
+            <div className="flex justify-between items-center bg-[#08080c] border border-[#1e1e2a] rounded-[10px] px-3.5 py-2 mb-3.5">
+              <span className="text-[12px] text-[#8a8aa0]">전체 승률</span>
+              <span className="text-[14px] font-bold text-[#8b5cf6]">
+                {stats.overallWinrate.winrate.toFixed(0)}% ({stats.overallWinrate.wins}승{' '}
+                {stats.overallWinrate.losses}패)
+              </span>
+            </div>
+
+            {/* Monthly Bar chart */}
+            <div className="mb-3.5">
+              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold">월별 승률</div>
+              <div className="flex items-end gap-2 h-20 bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+                {stats.monthlyStats
+                  .filter((m) => m.month >= '2026-07')
+                  .reverse()
+                  .map((m) => {
+                    const rate = m.winrate;
+                    const barColor = rate >= 60 ? '#8b5cf6' : rate >= 50 ? '#6366f1' : '#4b5563';
+                    const barHeight = Math.max(6, (rate / 100) * 50);
+                    return (
+                      <div
+                        key={m.month}
+                        className="flex-1 flex flex-col items-center justify-end h-full"
+                      >
+                        <div className="text-[9px] font-bold text-[#c0c0d0] mb-0.5">
+                          {rate.toFixed(0)}%
+                        </div>
+                        <div
+                          className="w-full rounded-t-[4px] transition-all"
+                          style={{ height: `${barHeight}px`, background: barColor, minHeight: '6px' }}
+                          title={`${m.month} ${rate.toFixed(1)}% (${m.wins}승 ${m.losses}패)`}
+                        />
+                        <div className="text-[9px] text-[#6a6a80] mt-1 whitespace-nowrap">
+                          {m.month.slice(5)}월
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Recent 10 games streak with Blue (승) / Red (패) */}
+          <div>
+            <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex items-center justify-between">
+              <span>최근 10경기 흐름</span>
+              <span className="text-[9px] text-[#5a5a6a]">승(Blue) / 패(Red)</span>
+            </div>
+            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+              <div className="flex gap-1.5">
+                {stats.recentTenMatches.length === 0 ? (
+                  <div className="text-[11px] text-[#5a5a6a]">경기 데이터가 없습니다.</div>
+                ) : (
+                  stats.recentTenMatches.map(({ match, won }) => (
+                    <div
+                      key={match.id}
+                      className={`flex-1 h-[30px] rounded-[6px] flex items-center justify-center text-[11px] font-black border transition-transform hover:scale-105 ${
+                        won
+                          ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
+                          : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
+                      }`}
+                      title={`${match.date} ${match.ck_name} - ${won ? '승리' : '패배'}`}
+                    >
+                      {won ? '승' : '패'}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -402,9 +457,12 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   const setNum = m.set_number || 1;
                   const isRedWin = m.winning_team === 'Red';
 
-                  const rowStyle = isRedWin
-                    ? { backgroundColor: 'rgba(239,68,68,0.06)', borderLeft: '3px solid #ef4444' }
-                    : { backgroundColor: 'rgba(59,130,246,0.06)', borderLeft: '3px solid #3b82f6' };
+                  // 승패 색상 직관화: 승리 시 '블루(파란색)', 패배 시 '레드(빨간색)' 스타일
+                  const rowStyle = won
+                    ? { backgroundColor: 'rgba(59,130,246,0.08)', borderLeft: '4px solid #3b82f6' }
+                    : { backgroundColor: 'rgba(239,68,68,0.08)', borderLeft: '4px solid #ef4444' };
+
+                  const winningTeamText = m.winning_team === 'Red' ? 'RED팀' : 'BLUE팀';
 
                   return (
                     <tr
@@ -417,7 +475,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                         <div className="truncate font-semibold text-white">{m.ck_name}</div>
                         <div className="mt-1 inline-flex text-[10px] bg-[#1e1e2a] border border-[#2a2a3a] text-[#8a8aa0] px-1.5 py-0.5 rounded-full">
                           {format !== '단판' ? `${format} ${setNum}세트 • ` : '단판 • '}
-                          {m.score || '1:0'}
+                          {winningTeamText} {m.score || '1:0'}
                         </div>
                       </td>
                       <td className="p-3">
@@ -438,8 +496,8 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                           <span
                             className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                               won
-                                ? 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/30'
-                                : 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/30'
+                                ? 'bg-[#3b82f6]/20 text-[#60a5fa] border border-[#3b82f6]/40'
+                                : 'bg-[#ef4444]/20 text-[#f87171] border border-[#ef4444]/40'
                             }`}
                           >
                             {won ? '승' : '패'}
@@ -451,7 +509,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                           {/* Red Team */}
                           <div className="space-y-0.5">
                             <div className="text-[10px] font-bold text-[#ef4444] flex items-center gap-1">
-                              <span>🔴 Red</span>
+                              <span>🔴 Red팀</span>
                               {m.winning_team === 'Red' && <span>👑</span>}
                             </div>
                             {LINE_KEYS.map((k) => (
@@ -467,7 +525,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                           {/* Blue Team */}
                           <div className="space-y-0.5">
                             <div className="text-[10px] font-bold text-[#3b82f6] flex items-center gap-1">
-                              <span>🔵 Blue</span>
+                              <span>🔵 Blue팀</span>
                               {m.winning_team === 'Blue' && <span>👑</span>}
                             </div>
                             {LINE_KEYS.map((k) => (
@@ -495,13 +553,13 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                       </td>
                       <td className="p-3 whitespace-nowrap">
                         <span
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 ${
-                            isRedWin
-                              ? 'bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/30'
-                              : 'bg-[#3b82f6]/15 text-[#3b82f6] border border-[#3b82f6]/30'
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1.5 ${
+                            won
+                              ? 'bg-[#3b82f6]/15 text-[#60a5fa] border border-[#3b82f6]/30'
+                              : 'bg-[#ef4444]/15 text-[#f87171] border border-[#ef4444]/30'
                           }`}
                         >
-                          {isRedWin ? '🔴' : '🔵'} {m.winning_team} {m.score}
+                          {won ? '🔵' : '🔴'} {winningTeamText} {m.score || ''}
                         </span>
                       </td>
                       <td className="p-3 whitespace-nowrap">

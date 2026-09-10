@@ -255,12 +255,12 @@ export const MainTab: React.FC<MainTabProps> = ({
     }, 100);
   };
 
-  // Best partners this month (ONLY partners with at least 1 win!)
+  // Best partners this month: 승이 패보다 많고(승률 50% 초과) 최소 1승 이상!
   const targetRole = stats.dominantMonthRole;
   const partnerRoleList = targetRole === 'ADC' ? ['TOP', 'JGL', 'MID', 'SUP'] : ['TOP', 'JGL', 'MID', 'ADC'];
   const bestPartners = partnerRoleList.map((line) => {
     const rolePartners = (Object.values(stats.partnerStats.thisMonth[targetRole]) as PartnerStat[]).filter(
-      (p) => p.line === line && p.wins > 0
+      (p) => p.line === line && p.wins > 0 && p.wins > p.games - p.wins
     );
     rolePartners.sort(
       (a, b) => b.wins / b.games - a.wins / a.games || b.wins - a.wins || b.games - a.games
