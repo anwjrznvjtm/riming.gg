@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Match, LineKey, LineName, TeamRoster, SynergyAnalysisResult, PartnerStat, LINE_KEYS, LINE_LABELS } from '../types';
-import { ComputedStats, getPlayerSynergyRate, getCombinations } from '../lib/stats';
+import { ComputedStats, getPlayerSynergyRate, getCombinations, WOORIMING, isWooriming } from '../lib/stats';
 import { Zap, Sparkles, RefreshCw, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MainTabProps {
@@ -34,12 +34,12 @@ export const MainTab: React.FC<MainTabProps> = ({
       onToast(`CK 일지에 등록된 스트리머가 10명 이상이어야 자동 채우기가 가능합니다. (현재 ${allStreamers.length}명)`);
       return;
     }
-    const others = allStreamers.filter((s) => s !== '우리밍');
+    const others = allStreamers.filter((s) => !isWooriming(s));
     setTeamA({
       top: others[0] || '',
       jgl: others[1] || '',
       mid: others[2] || '',
-      adc: '우리밍',
+      adc: WOORIMING,
       sup: others[3] || '',
     });
     setTeamB({
@@ -83,18 +83,18 @@ export const MainTab: React.FC<MainTabProps> = ({
       return;
     }
 
-    if (!allEntered.includes('우리밍')) {
-      setErrorMsg('우리밍이 10명 중에 포함되어야 시너지 분석이 가능합니다.');
+    if (!allEntered.some(isWooriming)) {
+      setErrorMsg('우리밍_이 10명 중에 포함되어야 시너지 분석이 가능합니다.');
       return;
     }
 
-    const wInA = playersA.some((p) => p.player === '우리밍');
+    const wInA = playersA.some((p) => isWooriming(p.player));
     const wTeam: 'Red' | 'Blue' = wInA ? 'Red' : 'Blue';
-    const teammates = (wInA ? playersA : playersB).filter((p) => p.player !== '우리밍');
+    const teammates = (wInA ? playersA : playersB).filter((p) => !isWooriming(p.player));
 
     // Wooriming synergy score with teammates
     const directSynergy =
-      teammates.reduce((acc, p) => acc + getPlayerSynergyRate('우리밍', p.player, stats.pairWinrates), 0) /
+      teammates.reduce((acc, p) => acc + getPlayerSynergyRate(WOORIMING, p.player, stats.pairWinrates), 0) /
       (teammates.length || 1);
 
     // Mutual synergies among other teammates
@@ -110,11 +110,11 @@ export const MainTab: React.FC<MainTabProps> = ({
     const finalExpected = directSynergy * 0.7 + mutualAvg * 0.3;
 
     const breakdown = teammates.map((t) => {
-      const pairKey = [t.player, '우리밍'].sort().join('|');
+      const pairKey = [t.player, WOORIMING].sort().join('|');
       const pStat = stats.pairWinrates.get(pairKey);
       return {
         name: t.player,
-        winrate: getPlayerSynergyRate('우리밍', t.player, stats.pairWinrates) * 100,
+        winrate: getPlayerSynergyRate(WOORIMING, t.player, stats.pairWinrates) * 100,
         games: pStat?.games || 0,
         line: t.line,
       };
@@ -122,8 +122,8 @@ export const MainTab: React.FC<MainTabProps> = ({
 
     setAnalysisResult({
       mode: 'current',
-      teamA: playersA.map((p) => ({ line: p.line, player: p.player })),
-      teamB: playersB.map((p) => ({ line: p.line, player: p.player })),
+      teamA: playersA.map((p) => ({ line: p.line, player: isWooriming(p.player) ? WOORIMING : p.player })),
+      teamB: playersB.map((p) => ({ line: p.line, player: isWooriming(p.player) ? WOORIMING : p.player })),
       expected: finalExpected * 100,
       breakdown,
       wTeam,
@@ -145,7 +145,8 @@ export const MainTab: React.FC<MainTabProps> = ({
     // Deduplicate
     const uniqueList: string[] = [];
     const seen = new Set<string>();
-    for (const p of rawList) {
+    for (const raw of rawList) {
+      const p = isWooriming(raw) ? WOORIMING : raw;
       if (!seen.has(p)) {
         seen.add(p);
         uniqueList.push(p);
@@ -153,9 +154,9 @@ export const MainTab: React.FC<MainTabProps> = ({
     }
 
     let players = uniqueList;
-    if (!players.includes('우리밍')) {
+    if (!players.some(isWooriming)) {
       if (players.length >= 10) players.pop();
-      players.push('우리밍');
+      players.push(WOORIMING);
     }
 
     if (players.length < 10) {
@@ -164,15 +165,15 @@ export const MainTab: React.FC<MainTabProps> = ({
     }
 
     if (players.length > 10) {
-      players = ['우리밍', ...players.filter((x) => x !== '우리밍').slice(0, 9)];
+      players = [WOORIMING, ...players.filter((x) => !isWooriming(x)).slice(0, 9)];
     }
 
-    const nonW = players.filter((p) => p !== '우리밍');
+    const nonW = players.filter((p) => !isWooriming(p));
     const combos = getCombinations(nonW, 4);
 
     const scoredCombos = combos.map((combo) => {
       const direct =
-        combo.reduce((acc, p) => acc + getPlayerSynergyRate('우리밍', p, stats.pairWinrates), 0) /
+        combo.reduce((acc, p) => acc + getPlayerSynergyRate(WOORIMING, p, stats.pairWinrates), 0) /
         combo.length;
       let mutualSum = 0,
         mutualCnt = 0;
@@ -192,15 +193,15 @@ export const MainTab: React.FC<MainTabProps> = ({
     const bestCombo = topPick.combo;
     const bestScore = topPick.score;
 
-    const remaining = players.filter((p) => !bestCombo.includes(p) && p !== '우리밍');
+    const remaining = players.filter((p) => !bestCombo.includes(p) && !isWooriming(p));
 
     // Assign to lines based on primary played positions
     function assignLines(playerGroup: string[]) {
       const result: { line: LineName; player: string }[] = [];
       const usedLines = new Set<LineName>();
       const sorted = [...playerGroup].sort((a, b) => {
-        if (a === '우리밍') return -1;
-        if (b === '우리밍') return 1;
+        if (isWooriming(a)) return -1;
+        if (isWooriming(b)) return 1;
         return 0;
       });
 
@@ -224,15 +225,15 @@ export const MainTab: React.FC<MainTabProps> = ({
       return result.sort((a, b) => order[a.line] - order[b.line]);
     }
 
-    const teamRedRoster = assignLines(['우리밍', ...bestCombo]);
+    const teamRedRoster = assignLines([WOORIMING, ...bestCombo]);
     const teamBlueRoster = assignLines(remaining);
 
     const breakdown = bestCombo.map((p) => {
-      const pairKey = [p, '우리밍'].sort().join('|');
+      const pairKey = [p, WOORIMING].sort().join('|');
       const pStat = stats.pairWinrates.get(pairKey);
       return {
         name: p,
-        winrate: getPlayerSynergyRate('우리밍', p, stats.pairWinrates) * 100,
+        winrate: getPlayerSynergyRate(WOORIMING, p, stats.pairWinrates) * 100,
         games: pStat?.games || 0,
         line: teamRedRoster.find((x) => x.player === p)?.line || stats.playerPrimaryLines[p] || 'TOP',
       };
@@ -254,15 +255,15 @@ export const MainTab: React.FC<MainTabProps> = ({
     }, 100);
   };
 
-  // Best partners this month
+  // Best partners this month (ONLY partners with at least 1 win!)
   const targetRole = stats.dominantMonthRole;
   const partnerRoleList = targetRole === 'ADC' ? ['TOP', 'JGL', 'MID', 'SUP'] : ['TOP', 'JGL', 'MID', 'ADC'];
   const bestPartners = partnerRoleList.map((line) => {
     const rolePartners = (Object.values(stats.partnerStats.thisMonth[targetRole]) as PartnerStat[]).filter(
-      (p) => p.line === line
+      (p) => p.line === line && p.wins > 0
     );
     rolePartners.sort(
-      (a, b) => b.wins / b.games - a.wins / a.games || b.games - a.games
+      (a, b) => b.wins / b.games - a.wins / a.games || b.wins - a.wins || b.games - a.games
     );
     return {
       line,
@@ -277,7 +278,7 @@ export const MainTab: React.FC<MainTabProps> = ({
 
   return (
     <div className="flex flex-col md:flex-row gap-6 md:gap-8">
-      {/* Left Column: Wooriming Winrate & Trends */}
+      {/* Left Column: Wooriming Profile & Best Partners */}
       <div className="md:w-[35%] w-full space-y-4">
         {/* Donut Card */}
         <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 md:p-8 flex flex-col items-center">
@@ -310,7 +311,7 @@ export const MainTab: React.FC<MainTabProps> = ({
           </div>
 
           <div className="mt-5 text-center">
-            <div className="text-[18px] font-bold tracking-tight text-white">우리밍</div>
+            <div className="text-[18px] font-bold tracking-tight text-white">우리밍_</div>
             <div className="mt-2 inline-flex items-center gap-2 bg-[#1e1e2a] border border-[#2a2a3a] rounded-full px-3 py-1 text-[11px] text-[#a0a0b8]">
               <span>이번달 ({stats.latestMonth})</span>
               <span>•</span>
@@ -325,85 +326,55 @@ export const MainTab: React.FC<MainTabProps> = ({
           <div className="mt-1 text-[11px] text-[#6a6a80]">클릭하면 전체 전적 보기</div>
         </div>
 
-        {/* Winrate Graph Card */}
-        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-4 shadow-[0_0_0_1px_rgba(139,92,246,0.12)]">
-          <div className="text-[13px] font-bold mb-3 flex items-center justify-between text-white">
-            <span className="flex items-center gap-2">📊 승률 추이</span>
-            <span className="text-[11px] font-normal text-[#8a8aa0]">2026 시즌</span>
-          </div>
-
-          <div className="flex justify-between items-center bg-[#08080c] border border-[#1e1e2a] rounded-[10px] px-3 py-2.5 mb-4">
-            <span className="text-[12px] text-[#8a8aa0]">전체 승률</span>
-            <span className="text-[14px] font-bold text-[#8b5cf6]">
-              {stats.overallWinrate.winrate.toFixed(0)}% ({stats.overallWinrate.wins}승{' '}
-              {stats.overallWinrate.losses}패)
+        {/* Best Partners Card (Moved here under profile) */}
+        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
+          <div className="flex justify-between items-center mb-1">
+            <h2 className="text-[15px] font-bold text-white">이번달 라인별 Best 파트너</h2>
+            <span className="text-[11px] text-[#a78bfa] font-medium bg-[#8b5cf6]/10 px-2.5 py-0.5 rounded-full">
+              {stats.dominantMonthRole} 기준
             </span>
           </div>
-
-          {/* Monthly Bar chart */}
-          <div className="mb-4">
-            <div className="text-[11px] text-[#6a6a80] mb-2 font-semibold">월별 승률</div>
-            <div className="flex items-end gap-2 h-24 bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3">
-              {stats.monthlyStats
-                .filter((m) => m.month >= '2026-07')
-                .reverse()
-                .map((m) => {
-                  const rate = m.winrate;
-                  const barColor = rate >= 60 ? '#8b5cf6' : rate >= 50 ? '#6366f1' : '#4b5563';
-                  const barHeight = Math.max(8, (rate / 100) * 64);
-                  return (
-                    <div
-                      key={m.month}
-                      className="flex-1 flex flex-col items-center justify-end h-full"
-                    >
-                      <div className="text-[10px] font-bold text-[#c0c0d0] mb-1">
-                        {rate.toFixed(0)}%
-                      </div>
-                      <div
-                        className="w-full rounded-t-[6px] transition-all"
-                        style={{ height: `${barHeight}px`, background: barColor, minHeight: '6px' }}
-                        title={`${m.month} ${rate.toFixed(1)}% (${m.wins}승 ${m.losses}패)`}
-                      />
-                      <div className="text-[10px] text-[#6a6a80] mt-1.5 whitespace-nowrap">
-                        {m.month.slice(5)}월
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
+          <div className="text-[11px] text-[#6a6a80] mb-3">
+            {stats.latestMonth} 경기 기준 • 함께 이긴 승률이 가장 높은 파트너
           </div>
 
-          {/* Recent 10 games streak */}
-          <div>
-            <div className="text-[11px] text-[#6a6a80] mb-2 font-semibold flex items-center justify-between">
-              <span>최근 10경기 흐름</span>
-              <span className="text-[9px] text-[#5a5a6a]">W:승 / L:패</span>
-            </div>
-            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3">
-              <div className="flex gap-1.5">
-                {stats.recentTenMatches.length === 0 ? (
-                  <div className="text-[11px] text-[#5a5a6a]">경기 데이터가 없습니다.</div>
-                ) : (
-                  stats.recentTenMatches.map(({ match, won }) => (
-                    <div
-                      key={match.id}
-                      className={`flex-1 h-[36px] rounded-[8px] flex items-center justify-center text-[12px] font-black border transition-transform hover:scale-105 ${
-                        won
-                          ? 'bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30'
-                          : 'bg-[#ef4444]/15 text-[#ef4444] border-[#ef4444]/30'
-                      }`}
-                      title={`${match.date} ${match.ck_name} - ${won ? '승리' : '패배'}`}
-                    >
-                      {won ? 'W' : 'L'}
+          <div className="grid grid-cols-1 gap-2.5">
+            {bestPartners.map((item) => (
+              <div
+                key={item.line}
+                className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3 hover:border-[#8b5cf6]/30 transition"
+              >
+                <div className="flex justify-between items-center text-[10px] tracking-wider text-[#8a8aa0] font-semibold">
+                  <span>{item.line} 라인 Best</span>
+                </div>
+                {item.best ? (
+                  <>
+                    <div className="mt-1 flex justify-between items-center">
+                      <span className="text-[13px] font-bold text-white">
+                        {item.best.name}{' '}
+                        <span className="text-[11px] font-normal text-[#8a8aa0]">
+                          ({item.best.line})
+                        </span>
+                      </span>
+                      <span className="text-[12px] text-[#8b5cf6] font-bold">
+                        {((item.best.wins / item.best.games) * 100).toFixed(0)}%
+                      </span>
                     </div>
-                  ))
+                    <div className="mt-0.5 text-[11px] text-[#c0c0d0]">
+                      {item.best.games}전 {item.best.wins}승 {item.best.games - item.best.wins}패
+                    </div>
+                    <div className="mt-1.5 h-[3px] bg-[#1e1e2a] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#8b5cf6]"
+                        style={{ width: `${(item.best.wins / item.best.games) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-1.5 text-[11px] text-[#5a5a6a]">승리 기록 없음</div>
                 )}
               </div>
-              <div className="mt-2 flex justify-between text-[9px] text-[#5a5a6a]">
-                <span>과거</span>
-                <span>최신</span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -568,8 +539,8 @@ export const MainTab: React.FC<MainTabProps> = ({
                     <div className="flex justify-between items-center mb-3">
                       <div className="text-[13px] font-bold text-[#ef4444]">
                         {analysisResult.mode === 'optimal'
-                          ? '최적 🔴 Red팀 (우리밍팀)'
-                          : `🔴 Red팀 ${analysisResult.wTeam === 'Red' ? '(우리밍팀)' : ''}`}
+                          ? '최적 🔴 Red팀 (우리밍_팀)'
+                          : `🔴 Red팀 ${analysisResult.wTeam === 'Red' ? '(우리밍_팀)' : ''}`}
                       </div>
                       <div className="text-[11px] bg-[#ef4444] text-white px-2 py-0.5 rounded-full font-bold">
                         {analysisResult.expected.toFixed(1)}% 예상 승률
@@ -588,15 +559,15 @@ export const MainTab: React.FC<MainTabProps> = ({
                             </span>
                             <span
                               className={
-                                p.player === '우리밍' ? 'font-bold text-[#8b5cf6]' : 'text-white'
+                                isWooriming(p.player) ? 'font-bold text-[#8b5cf6]' : 'text-white'
                               }
                             >
                               {p.player}
                             </span>
                           </span>
-                          {p.player !== '우리밍' && (
+                          {!isWooriming(p.player) && (
                             <span className="text-[#8b5cf6] text-[11px] font-semibold">
-                              {(getPlayerSynergyRate('우리밍', p.player, stats.pairWinrates) * 100).toFixed(0)}
+                              {(getPlayerSynergyRate(WOORIMING, p.player, stats.pairWinrates) * 100).toFixed(0)}
                               %
                             </span>
                           )}
@@ -605,7 +576,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                     </div>
 
                     <div className="mt-3 text-[11px] text-[#8a8aa0] space-y-1 border-t border-[#1e1e2a] pt-2">
-                      <div className="text-[10px] text-[#6a6a80] font-semibold mb-1">우리밍과의 판수 & 승률</div>
+                      <div className="text-[10px] text-[#6a6a80] font-semibold mb-1">우리밍_과의 판수 & 승률</div>
                       {analysisResult.breakdown.map((b) => (
                         <div key={b.name} className="flex justify-between text-[11px]">
                           <span>
@@ -625,7 +596,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                       <div className="text-[13px] font-bold text-[#3b82f6]">
                         {analysisResult.mode === 'optimal'
                           ? '최적 🔵 Blue팀 (상대팀)'
-                          : `🔵 Blue팀 ${analysisResult.wTeam === 'Blue' ? '(우리밍팀)' : ''}`}
+                          : `🔵 Blue팀 ${analysisResult.wTeam === 'Blue' ? '(우리밍_팀)' : ''}`}
                       </div>
                       <div className="text-[11px] bg-[#3b82f6] text-white px-2 py-0.5 rounded-full font-bold">
                         {(100 - analysisResult.expected).toFixed(1)}% 예상 승률
@@ -658,56 +629,6 @@ export const MainTab: React.FC<MainTabProps> = ({
               )}
             </div>
           )}
-        </div>
-
-        {/* Best Partners Card */}
-        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 md:p-6">
-          <div className="flex justify-between items-center mb-1">
-            <h2 className="text-[15px] font-bold text-white">이번달 라인별 Best 파트너</h2>
-            <span className="text-[11px] text-[#a78bfa] font-medium bg-[#8b5cf6]/10 px-2.5 py-0.5 rounded-full">
-              우리밍 {stats.dominantMonthRole} 기준
-            </span>
-          </div>
-          <div className="text-[11px] text-[#6a6a80] mb-4">
-            {stats.latestMonth} 경기 기준 • 함께 플레이했을 때 승률이 가장 높은 파트너
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {bestPartners.map((item) => (
-              <div
-                key={item.line}
-                className="bg-[#08080c] border border-[#1e1e2a] rounded-[14px] p-4 hover:border-[#8b5cf6]/30 transition"
-              >
-                <div className="text-[10px] tracking-widest text-[#8a8aa0] font-semibold">
-                  {item.line} 라인 Best
-                </div>
-                {item.best ? (
-                  <>
-                    <div className="mt-1 text-[14px] font-bold text-white">
-                      {item.best.name}{' '}
-                      <span className="text-[11px] font-normal text-[#8a8aa0]">
-                        ({item.best.line})
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[12px] text-[#c0c0d0]">
-                      {item.best.games}전 {item.best.wins}승 {item.best.games - item.best.wins}패 •{' '}
-                      <span className="text-[#8b5cf6] font-bold">
-                        {((item.best.wins / item.best.games) * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="mt-2 h-[4px] bg-[#1e1e2a] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#8b5cf6]"
-                        style={{ width: `${(item.best.wins / item.best.games) * 100}%` }}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-2 text-[12px] text-[#5a5a6a]">데이터 없음</div>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>

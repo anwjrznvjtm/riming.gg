@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Match } from '../types';
-import { getPlayerSynergyRate } from '../lib/stats';
+import { getPlayerSynergyRate, isWooriming, WOORIMING } from '../lib/stats';
 import { Search, Volume2, VolumeX, Play, Pause, Lock, Unlock } from 'lucide-react';
 
 interface HeaderProps {
@@ -53,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (!searchQuery.trim()) return [];
     const q = searchQuery.trim().toLowerCase();
     const filtered = allStreamers
-      .filter((name) => name.toLowerCase().includes(q) && name !== '우리밍')
+      .filter((name) => name.toLowerCase().includes(q) && !isWooriming(name))
       .slice(0, 6);
 
     return filtered.map((name) => {
@@ -63,9 +63,9 @@ export const Header: React.FC<HeaderProps> = ({
       for (const m of matches) {
         const aPlayers = Object.values(m.team_a);
         const bPlayers = Object.values(m.team_b);
-        const wInA = aPlayers.includes('우리밍');
+        const wInA = aPlayers.some(isWooriming);
         const pInA = aPlayers.includes(name);
-        const wInB = bPlayers.includes('우리밍');
+        const wInB = bPlayers.some(isWooriming);
         const pInB = bPlayers.includes(name);
 
         const isSame = (wInA && pInA) || (wInB && pInB);
@@ -189,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <div className="bg-[#08080c] rounded-[10px] p-2 border border-[#1e1e2a]">
                         <div className="text-[10px] text-[#8a8aa0]">상대 팀</div>
                         <div className="text-[11px] mt-0.5 font-medium">
-                          {item.opp.games}판 우리밍 {item.opp.wins}승
+                          {item.opp.games}판 우리밍_ {item.opp.wins}승
                         </div>
                         <div className="text-[12px] font-bold text-[#a0a0b8]">
                           {item.opp.games ? item.opp.winrate.toFixed(0) : 0}%

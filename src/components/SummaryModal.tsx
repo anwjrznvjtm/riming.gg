@@ -22,7 +22,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ stats, isOpen, onClo
       >
         <div className="flex justify-between items-start mb-5">
           <div>
-            <div className="text-[16px] font-bold text-white">우리밍 전체 요약 · riming.gg</div>
+            <div className="text-[16px] font-bold text-white">우리밍_ 전체 요약 · riming.gg</div>
             <div className="text-[11px] text-[#6a6a80] mt-0.5">전체 CK 전적 통계 및 포지션 상세</div>
           </div>
           <button

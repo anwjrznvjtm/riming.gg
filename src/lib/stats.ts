@@ -1,5 +1,13 @@
 import { Match, LineKey, LineName, ChampionStat, PartnerStat, LINE_KEYS, LINE_LABELS } from '../types';
 
+export const WOORIMING = '우리밍_';
+
+export function isWooriming(name?: string | null): boolean {
+  if (!name) return false;
+  const clean = name.trim().replace(/\s+/g, '');
+  return clean === '우리밍_' || clean === '우리밍' || clean.startsWith('우리밍');
+}
+
 export function parseKda(kda?: string): { k: number; d: number; a: number } {
   if (!kda || !kda.includes('/')) return { k: 0, d: 0, a: 0 };
   const parts = kda.split('/').map((x) => parseInt(x.trim(), 10) || 0);
@@ -19,18 +27,52 @@ export function isKdaEmpty(kda?: string): boolean {
 }
 
 export function getWoorimingTeam(match: Match): 'Red' | 'Blue' {
-  return Object.values(match.team_a).includes('우리밍') ? 'Red' : 'Blue';
+  if (!match) return 'Red';
+  if (match.team_a) {
+    for (const key of LINE_KEYS) {
+      if (isWooriming(match.team_a[key])) return 'Red';
+    }
+  }
+  if (match.team_b) {
+    for (const key of LINE_KEYS) {
+      if (isWooriming(match.team_b[key])) return 'Blue';
+    }
+  }
+  const inA = Object.values(match.team_a || {}).some(isWooriming);
+  const inB = Object.values(match.team_b || {}).some(isWooriming);
+  if (inA) return 'Red';
+  if (inB) return 'Blue';
+  return 'Red';
 }
 
 export function getWoorimingLine(match: Match): LineName | null {
-  const team = getWoorimingTeam(match);
-  const roster = team === 'Red' ? match.team_a : match.team_b;
-  for (const key of LINE_KEYS) {
-    if (roster[key] === '우리밍') {
-      return LINE_LABELS[key];
+  if (!match) return 'ADC';
+  for (const teamKey of ['team_a', 'team_b'] as const) {
+    const roster = match[teamKey];
+    if (roster) {
+      for (const key of LINE_KEYS) {
+        if (isWooriming(roster[key])) {
+          return LINE_LABELS[key];
+        }
+      }
     }
   }
   return null;
+}
+
+export function getWoorimingLineKey(match: Match): LineKey {
+  if (!match) return 'adc';
+  for (const teamKey of ['team_a', 'team_b'] as const) {
+    const roster = match[teamKey];
+    if (roster) {
+      for (const key of LINE_KEYS) {
+        if (isWooriming(roster[key])) {
+          return key;
+        }
+      }
+    }
+  }
+  return 'adc';
 }
 
 export function getCombinations<T>(arr: T[], k: number): T[][] {
@@ -157,7 +199,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
       rate: matches.length ? (cnt / matches.length) * 100 : 0,
     }));
 
-  // Most picked by 우리밍
+  // Most picked by 우리밍_
   const pickMap: Record<string, { picks: number; wins: number; losses: number; kSum: number; dSum: number; aSum: number; kdaCount: number }> = {};
   for (const m of matches) {
     const wTeam = getWoorimingTeam(m);
@@ -166,7 +208,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
     const kdas = wTeam === 'Red' ? m.team_a_kda : m.team_b_kda;
     let wKey: LineKey | null = null;
     for (const k of LINE_KEYS) {
-      if (roster[k] === '우리밍') {
+      if (isWooriming(roster[k])) {
         wKey = k;
         break;
       }
@@ -219,7 +261,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
       const roster = wTeam === 'Red' ? m.team_a : m.team_b;
       let wKey: LineKey | null = null;
       for (const k of LINE_KEYS) {
-        if (roster[k] === '우리밍') {
+        if (isWooriming(roster[k])) {
           wKey = k;
           break;
         }
@@ -231,8 +273,9 @@ export function calculateStats(matches: Match[]): ComputedStats {
 
       for (const k of LINE_KEYS) {
         if (k === wKey) continue;
-        const pName = roster[k];
-        if (!pName) continue;
+        const pRaw = roster[k];
+        if (!pRaw || isWooriming(pRaw)) continue;
+        const pName = pRaw.trim();
         const pLine = LINE_LABELS[k];
         const compositeKey = `${pName}|${pLine}`;
         const targetMap = wLine === 'ADC' ? adcPartners : supPartners;
@@ -263,7 +306,9 @@ export function calculateStats(matches: Match[]): ComputedStats {
       const validPlayers = t.players.filter(Boolean);
       for (let i = 0; i < validPlayers.length; i++) {
         for (let j = i + 1; j < validPlayers.length; j++) {
-          const key = [validPlayers[i], validPlayers[j]].sort().join('|');
+          const p1 = isWooriming(validPlayers[i]) ? WOORIMING : validPlayers[i].trim();
+          const p2 = isWooriming(validPlayers[j]) ? WOORIMING : validPlayers[j].trim();
+          const key = [p1, p2].sort().join('|');
           const stat = pairWinrates.get(key) || { games: 0, wins: 0 };
           stat.games++;
           if (t.won) stat.wins++;
@@ -279,8 +324,9 @@ export function calculateStats(matches: Match[]): ComputedStats {
     const rosters = [m.team_a, m.team_b];
     for (const r of rosters) {
       for (const k of LINE_KEYS) {
-        const name = r[k];
-        if (!name) continue;
+        const rawName = r[k];
+        if (!rawName) continue;
+        const name = isWooriming(rawName) ? WOORIMING : rawName.trim();
         if (!playerLineCounts[name]) {
           playerLineCounts[name] = { TOP: 0, JGL: 0, MID: 0, ADC: 0, SUP: 0 };
         }
@@ -301,6 +347,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
     }
     playerPrimaryLines[name] = topL;
   }
+  playerPrimaryLines[WOORIMING] = 'ADC';
   playerPrimaryLines['우리밍'] = 'ADC';
 
   // Dominant month role

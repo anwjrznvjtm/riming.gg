@@ -23,7 +23,7 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats }) => {
           <span>라인별 시너지 분석</span>
         </h1>
         <p className="text-[13px] text-[#8a8aa0] mt-1">
-          우리밍이 원딜 또는 서폿일 때, 함께한 파트너 라인별 Best / Worst 선수를 확인하고 상세 랭킹을 조회할 수 있습니다.
+          우리밍_이 원딜 또는 서폿일 때, 함께한 파트너 라인별 Best / Worst 선수를 확인하고 상세 랭킹을 조회할 수 있습니다.
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats }) => {
               </div>
               <div>
                 <div className="font-bold text-[16px] text-white">
-                  우리밍 {wRole === 'ADC' ? '원딜' : '서폿'} 포지션
+                  우리밍_ {wRole === 'ADC' ? '원딜' : '서폿'} 포지션
                 </div>
                 <div className="text-[11px] text-[#6a6a80]">
                   전체 기록 기준 • 파트너 라인별 승률 Best & Worst
@@ -144,7 +144,7 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats }) => {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <div className="font-bold text-[16px] text-white">
-                  우리밍({selectedModal.woorimingLine === 'ADC' ? '원딜' : '서폿'}) ×{' '}
+                  우리밍_({selectedModal.woorimingLine === 'ADC' ? '원딜' : '서폿'}) ×{' '}
                   {selectedModal.partnerLine} 파트너 전체 랭킹
                 </div>
                 <div className="text-[11px] text-[#6a6a80]">
