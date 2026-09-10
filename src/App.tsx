@@ -333,10 +333,10 @@ export default function App() {
   // Compute stats from current matches
   const stats = useMemo(() => calculateStats(matches), [matches]);
 
-  // Aggregate all streamers purely from registered CK journal matches (+ '우리밍')
+  // Aggregate all streamers purely from registered CK journal matches (+ '우리밍_')
   const allStreamers = useMemo(() => {
     const set = new Set<string>();
-    set.add('우리밍');
+    set.add('우리밍_');
     for (const m of matches) {
       for (const k of ['top', 'jgl', 'mid', 'adc', 'sup'] as const) {
         if (m.team_a && m.team_a[k] && m.team_a[k].trim()) {
@@ -348,8 +348,8 @@ export default function App() {
       }
     }
     return Array.from(set).filter(Boolean).sort((a, b) => {
-      if (a === '우리밍') return -1;
-      if (b === '우리밍') return 1;
+      if (a === '우리밍_') return -1;
+      if (b === '우리밍_') return 1;
       return a.localeCompare(b);
     });
   }, [matches]);
@@ -497,7 +497,7 @@ export default function App() {
             <span className="font-bold text-[#8a8aa0]">RIMING.GG</span> • CK 기록 전용 • Dark minimal
           </div>
           <div>
-            Data: {matches.length} matches • Red팀 vs Blue팀 • 우리밍 ADC/SUP
+            Data: {matches.length} matches • Red팀 vs Blue팀 • 우리밍_ ADC/SUP
           </div>
         </div>
       </footer>
