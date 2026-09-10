@@ -17,6 +17,7 @@ import { JournalTab } from './components/JournalTab';
 import { RollandTab } from './components/RollandTab';
 import { SummaryModal } from './components/SummaryModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import { BGM_PLAYLIST, BgmTrack, createBgmQueue } from './lib/bgm';
 
 declare global {
   interface Window {
@@ -24,8 +25,6 @@ declare global {
     onYouTubeIframeAPIReady?: () => void;
   }
 }
-
-const BGM_VIDEO_ID = 'Ya3APDs8hUk';
 
 export default function App() {
   const [matches, setMatches] = useState<Match[]>(() => {
@@ -57,13 +56,66 @@ export default function App() {
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
 
-  // BGM audio state
+  // BGM audio state with Fisher-Yates shuffled queue
   const [isBgmPlaying, setIsBgmPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [bgmVolume, setBgmVolume] = useState<number>(35);
+
+  const queueRef = useRef<BgmTrack[]>([]);
+  const currentTrackRef = useRef<BgmTrack>(BGM_PLAYLIST[0]);
+  const [currentTrack, setCurrentTrack] = useState<BgmTrack>(BGM_PLAYLIST[0]);
+  const isQueueInitRef = useRef<boolean>(false);
+
+  // Fisher-Yates 셔플 큐 초기화 (모든 곡이 1회씩 재생된 후 다시 셔플)
+  if (!isQueueInitRef.current) {
+    const initialQueue = createBgmQueue(BGM_PLAYLIST);
+    const first = initialQueue.shift() || BGM_PLAYLIST[0];
+    currentTrackRef.current = first;
+    queueRef.current = initialQueue;
+    isQueueInitRef.current = true;
+  }
+
   const ytPlayerRef = useRef<any>(null);
   const isUserPausedRef = useRef<boolean>(false);
   const hasInteractedRef = useRef<boolean>(false);
+
+  // Fisher-Yates 셔플 재생 큐를 활용한 다음 곡 재생
+  // - 큐에 남은 곡이 없을 경우(모든 곡이 1회 재생 완료됨), 전체 목록을 다시 Fisher-Yates로 셔플
+  // - 직전에 재생된 마지막 곡(lastTrack)과 새 큐의 첫 번째 곡이 동일하지 않도록 방지
+  const playNextTrack = (isAuto = false) => {
+    hasInteractedRef.current = true;
+    const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
+    const lastTrack = currentTrackRef.current;
+
+    let nextTrack: BgmTrack;
+    if (queueRef.current.length === 0) {
+      const newQueue = createBgmQueue(BGM_PLAYLIST, lastTrack?.id);
+      nextTrack = newQueue.shift() || BGM_PLAYLIST[0];
+      queueRef.current = newQueue;
+    } else {
+      nextTrack = queueRef.current.shift()!;
+    }
+
+    currentTrackRef.current = nextTrack;
+    setCurrentTrack(nextTrack);
+
+    if (player && typeof player.loadVideoById === 'function') {
+      try {
+        player.loadVideoById(nextTrack.videoId);
+        if (!isUserPausedRef.current) {
+          player.playVideo();
+          setIsBgmPlaying(true);
+        }
+      } catch (e) {
+        console.warn('Failed to load next video by ID', e);
+      }
+    }
+
+    showToast(`🎵 ${isAuto ? '다음 곡' : 'BGM 전환'}: ${nextTrack.title} (${nextTrack.artist})`);
+  };
+
+  const playNextTrackRef = useRef(playNextTrack);
+  playNextTrackRef.current = playNextTrack;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -131,12 +183,11 @@ export default function App() {
 
       try {
         const player = new window.YT.Player('youtube-bgm-iframe-target', {
-          videoId: BGM_VIDEO_ID,
+          videoId: currentTrackRef.current.videoId,
           playerVars: {
             autoplay: 1,
-            controls: 1,
-            loop: 1,
-            playlist: BGM_VIDEO_ID,
+            controls: 0,
+            loop: 0,
             playsinline: 1,
             enablejsapi: 1,
             rel: 0,
@@ -165,12 +216,17 @@ export default function App() {
                 setIsBgmPlaying(false);
               } else if (event.data === 0) {
                 if (!isUserPausedRef.current) {
-                  event.target.playVideo();
+                  playNextTrackRef.current(true);
                 }
               }
             },
             onError: (event: any) => {
               console.warn('YouTube Player error code:', event.data);
+              setTimeout(() => {
+                if (!isUserPausedRef.current) {
+                  playNextTrackRef.current(true);
+                }
+              }, 800);
             },
           },
         });
@@ -275,7 +331,7 @@ export default function App() {
         if (bgmVolume === 0) setBgmVolume(35);
         player.playVideo();
         setIsBgmPlaying(true);
-        showToast('BGM 재생 🎵');
+        showToast(`BGM 재생 🎵 (${currentTrackRef.current.title})`);
       }
     } catch (e) {
       console.warn(e);
@@ -436,6 +492,8 @@ export default function App() {
         onToast={showToast}
         isBgmPlaying={isBgmPlaying}
         onToggleBgm={toggleBgm}
+        onNextBgm={() => playNextTrack(false)}
+        currentTrack={currentTrack}
         isMuted={isMuted}
         onToggleMute={toggleMute}
         bgmVolume={bgmVolume}

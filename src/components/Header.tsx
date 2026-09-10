@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Match } from '../types';
 import { getPlayerSynergyRate, isWooriming, WOORIMING } from '../lib/stats';
-import { Search, Volume2, VolumeX, Play, Pause, Lock, Unlock } from 'lucide-react';
+import { Search, Volume2, VolumeX, Play, Pause, Lock, Unlock, SkipForward } from 'lucide-react';
+import { BgmTrack } from '../lib/bgm';
 
 interface HeaderProps {
   currentTab: string;
@@ -15,6 +16,8 @@ interface HeaderProps {
   onToast: (msg: string) => void;
   isBgmPlaying: boolean;
   onToggleBgm: () => void;
+  onNextBgm?: () => void;
+  currentTrack?: BgmTrack | null;
   isMuted: boolean;
   onToggleMute: () => void;
   bgmVolume: number;
@@ -33,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToast,
   isBgmPlaying,
   onToggleBgm,
+  onNextBgm,
+  currentTrack,
   isMuted,
   onToggleMute,
   bgmVolume,
@@ -209,6 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-[#8b5cf6]/15 border-[#8b5cf6]/50 shadow-[0_0_12px_rgba(139,92,246,0.15)]'
                 : 'bg-[#12121a] border-[#1e1e2a] hover:border-[#2a2a3e]'
             }`}
+            title={currentTrack ? `현재 곡: ${currentTrack.title} - ${currentTrack.artist}` : 'BGM 플레이어'}
           >
             <button
               type="button"
@@ -226,6 +232,23 @@ export const Header: React.FC<HeaderProps> = ({
                 {isBgmPlaying ? <Pause size={11} /> : <Play size={11} className="ml-0.5" />}
               </div>
             </button>
+
+            {onNextBgm && (
+              <button
+                type="button"
+                onClick={onNextBgm}
+                className="w-[22px] h-[22px] flex items-center justify-center rounded-full hover:bg-[#1e1e2c] text-[#a0a0b8] hover:text-[#c4b5fd] transition"
+                title="다음 곡 (무작위 셔플 큐)"
+              >
+                <SkipForward size={11} />
+              </button>
+            )}
+
+            {currentTrack && isBgmPlaying && (
+              <div className="hidden xl:flex items-center max-w-[110px] truncate text-[10px] text-[#a78bfa] font-medium px-0.5 select-none">
+                <span className="truncate">{currentTrack.title}</span>
+              </div>
+            )}
 
             <div className="w-[1px] h-[14px] bg-[#222234] mx-0.5" />
 
