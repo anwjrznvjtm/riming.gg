@@ -129,7 +129,33 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  // Save matches to localStorage
+  // Fetch initial matches from Cloudflare Pages D1 API (/api/matches) with LocalStorage fallback
+  useEffect(() => {
+    let isMounted = true;
+    async function syncFromApi() {
+      try {
+        const res = await fetch('/api/matches');
+        if (res.ok) {
+          const data = await res.json();
+          const rawList = Array.isArray(data) ? data : data?.matches || [];
+          if (Array.isArray(rawList) && rawList.length > 0 && isMounted) {
+            const normalized = rawList.map((m: any) => normalizeMatch(m));
+            setMatches(normalized);
+            console.log(`[D1 DB] Successfully loaded ${normalized.length} matches from /api/matches`);
+          }
+        }
+      } catch (err) {
+        // Fallback silently to LocalStorage if /api/matches is offline or not deployed yet
+        console.warn('[D1 DB] /api/matches sync skipped, using local cache:', err);
+      }
+    }
+    syncFromApi();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Save matches to localStorage as reliable local cache
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(matches));
@@ -426,10 +452,19 @@ export default function App() {
     return Array.from(set).filter(Boolean).sort();
   }, [matches]);
 
-  // Match mutations with schema normalization
+  // Match mutations with schema normalization & Cloudflare D1 API sync
   const handleAddMatch = (newMatch: Match) => {
     const normalized = normalizeMatch(newMatch);
     setMatches((prev) => [normalized, ...prev]);
+
+    // Asynchronously persist to Cloudflare D1
+    fetch('/api/matches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(normalized),
+    }).catch((err) => {
+      console.warn('[D1 API] POST /api/matches failed, preserved in local cache:', err);
+    });
   };
 
   const handleUpdateMatch = (updatedMatch: Match) => {
@@ -437,10 +472,26 @@ export default function App() {
     setMatches((prev) =>
       prev.map((m) => (String(m.id) === String(normalized.id) ? normalized : m))
     );
+
+    // Asynchronously update Cloudflare D1
+    fetch('/api/matches', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(normalized),
+    }).catch((err) => {
+      console.warn('[D1 API] PUT /api/matches failed, preserved in local cache:', err);
+    });
   };
 
   const handleDeleteMatch = (id: string) => {
     setMatches((prev) => prev.filter((m) => String(m.id) !== String(id)));
+
+    // Asynchronously delete from Cloudflare D1
+    fetch(`/api/matches?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch((err) => {
+      console.warn('[D1 API] DELETE /api/matches failed:', err);
+    });
   };
 
   const handleImportMatches = (importedList: Match[], mode: 'replace' | 'merge') => {
@@ -460,23 +511,22 @@ export default function App() {
         return combined;
       });
     }
+
+    // Asynchronously batch import to Cloudflare D1
+    fetch('/api/matches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, matches: cleanList }),
+    }).catch((err) => {
+      console.warn('[D1 API] Batch POST /api/matches failed:', err);
+    });
   };
 
   return (
     <div className="min-h-screen bg-[#08080c] text-[#e6e6ef] selection:bg-[#8b5cf6]/30 flex flex-col justify-between">
-      {/* Background YouTube Host - kept in viewport with opacity 0.005 so browser never freezes audio */}
+      {/* Background YouTube Host */}
       <div
-        style={{
-          position: 'fixed',
-          bottom: '0px',
-          right: '0px',
-          width: '240px',
-          height: '135px',
-          opacity: 0.005,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-          zIndex: -50,
-        }}
+        className="fixed bottom-0 right-0 w-[240px] h-[135px] opacity-[0.005] overflow-hidden pointer-events-none -z-50"
         aria-hidden="true"
       >
         <div id="youtube-bgm-iframe-target" className="w-full h-full" />
