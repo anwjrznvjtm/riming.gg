@@ -464,24 +464,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#08080c] text-[#e6e6ef] selection:bg-[#8b5cf6]/30 flex flex-col justify-between">
-      {/* Background YouTube Host - kept in viewport with opacity 0.005 so browser never freezes audio */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '0px',
-          right: '0px',
-          width: '240px',
-          height: '135px',
-          opacity: 0.005,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-          zIndex: -50,
-        }}
-        aria-hidden="true"
-      >
-        <div id="youtube-bgm-iframe-target" className="w-full h-full" />
-      </div>
-
       {/* Datalists for autocompletion */}
       <datalist id="players-datalist">
         {allStreamers.map((name) => (
