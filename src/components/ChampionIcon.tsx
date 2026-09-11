@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getChampionIconUrl, getChampionFallbackUrl } from '../lib/champions';
+import { getChampionIconUrl, getChampionFallbackUrl, normalizeChampionName } from '../lib/champions';
 
 interface ChampionIconProps {
   name: string;
@@ -14,18 +14,19 @@ export const ChampionIcon: React.FC<ChampionIconProps> = ({
   shape = 'circle',
   className = '',
 }) => {
-  const [currentSrc, setCurrentSrc] = useState<string | null>(() => getChampionIconUrl(name));
+  const normalized = normalizeChampionName(name);
+  const [currentSrc, setCurrentSrc] = useState<string | null>(() => getChampionIconUrl(normalized));
   const [hasFailedAll, setHasFailedAll] = useState(false);
 
   useEffect(() => {
-    setCurrentSrc(getChampionIconUrl(name));
+    setCurrentSrc(getChampionIconUrl(normalized));
     setHasFailedAll(false);
-  }, [name]);
+  }, [normalized]);
 
   const roundedClass = shape === 'square' ? 'rounded-[6px]' : 'rounded-full';
 
   const handleError = () => {
-    const fallback = getChampionFallbackUrl(name);
+    const fallback = getChampionFallbackUrl(normalized);
     if (currentSrc !== fallback && fallback) {
       setCurrentSrc(fallback);
     } else {
@@ -34,7 +35,7 @@ export const ChampionIcon: React.FC<ChampionIconProps> = ({
   };
 
   if (!currentSrc || hasFailedAll) {
-    const initial = name ? name.trim().slice(0, 1) : '?';
+    const initial = normalized ? normalized.trim().slice(0, 1) : '?';
     return (
       <div
         className={`${roundedClass} bg-[#1e1e2e] border border-[#3a3a4e] flex items-center justify-center font-bold text-[#c4b5fd] shrink-0 shadow-sm select-none ${className}`}
@@ -43,7 +44,7 @@ export const ChampionIcon: React.FC<ChampionIconProps> = ({
           height: `${size}px`,
           fontSize: `${Math.max(9, Math.floor(size * 0.44))}px`,
         }}
-        title={name}
+        title={normalized}
       >
         {initial}
       </div>
@@ -53,8 +54,8 @@ export const ChampionIcon: React.FC<ChampionIconProps> = ({
   return (
     <img
       src={currentSrc}
-      alt={name}
-      title={name}
+      alt={normalized}
+      title={normalized}
       referrerPolicy="no-referrer"
       onError={handleError}
       className={`${roundedClass} object-cover shrink-0 border border-white/20 shadow-sm ${className}`}

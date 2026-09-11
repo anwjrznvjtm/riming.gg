@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { searchChampions, getChosung } from '../lib/championSearch';
+import { ChampionIcon } from './ChampionIcon';
 
 interface AutocompleteInputProps {
   value: string;
@@ -116,7 +117,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       />
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute left-0 top-full mt-1.5 w-max min-w-full max-w-[220px] bg-[#12121a] border border-[#2a2a3a] rounded-[10px] shadow-2xl py-1 z-[100] max-h-[220px] overflow-y-auto">
+        <div className="absolute left-0 top-full mt-1.5 w-max min-w-[150px] max-w-[240px] bg-[#12121a] border border-[#2a2a3a] rounded-[10px] shadow-2xl py-1 z-[100] max-h-[240px] overflow-y-auto">
           {suggestions.map((item, idx) => {
             const isHighlighted = idx === highlightIndex;
             return (
@@ -128,16 +129,21 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                   handleSelect(item);
                 }}
                 onMouseEnter={() => setHighlightIndex(idx)}
-                className={`w-full text-left px-3 py-1.5 text-[11px] font-medium flex items-center justify-between transition-colors ${
+                className={`w-full text-left px-2.5 py-1.5 text-[11px] font-medium flex items-center justify-between gap-2 transition-colors ${
                   isHighlighted
                     ? 'bg-[#8b5cf6] text-white'
                     : 'text-[#e0e0f0] hover:bg-[#1e1e2a]'
                 }`}
               >
-                <span>{item}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {type === 'champion' && (
+                    <ChampionIcon name={item} size={18} shape="square" className="shrink-0" />
+                  )}
+                  <span className="truncate font-semibold">{item}</span>
+                </div>
                 {type === 'champion' && (
                   <span
-                    className={`text-[9px] ${
+                    className={`text-[9px] shrink-0 ${
                       isHighlighted ? 'text-white/80' : 'text-[#8a8aa0]'
                     }`}
                   >

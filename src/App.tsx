@@ -10,6 +10,7 @@ import {
   getInitialMatches,
 } from './data/initialMatches';
 import { calculateStats } from './lib/stats';
+import { normalizeChampionName } from './lib/champions';
 import { Header } from './components/Header';
 import { MainTab } from './components/MainTab';
 import { SynergyTab } from './components/SynergyTab';
@@ -414,11 +415,11 @@ export default function App() {
     const set = new Set<string>(CHAMPIONS_LIST);
     for (const m of matches) {
       for (const k of ['top', 'jgl', 'mid', 'adc', 'sup'] as const) {
-        if (m.team_a_champs[k]) set.add(m.team_a_champs[k].trim());
-        if (m.team_b_champs[k]) set.add(m.team_b_champs[k].trim());
+        if (m.team_a_champs[k]) set.add(normalizeChampionName(m.team_a_champs[k].trim()));
+        if (m.team_b_champs[k]) set.add(normalizeChampionName(m.team_b_champs[k].trim()));
       }
       for (const b of [...m.ban_a, ...m.ban_b]) {
-        if (b) set.add(b.trim());
+        if (b) set.add(normalizeChampionName(b.trim()));
       }
     }
     return Array.from(set).filter(Boolean).sort();
@@ -437,6 +438,44 @@ export default function App() {
 
   const handleDeleteMatch = (id: string) => {
     setMatches((prev) => prev.filter((m) => String(m.id) !== String(id)));
+  };
+
+  const handleImportMatches = (importedList: Match[], mode: 'replace' | 'merge') => {
+    const cleanList = importedList.map((m, idx) => ({
+      ...m,
+      id: m.id || `m_imported_${Date.now()}_${idx}`,
+      team_a_champs: {
+        top: normalizeChampionName(m.team_a_champs?.top),
+        jgl: normalizeChampionName(m.team_a_champs?.jgl),
+        mid: normalizeChampionName(m.team_a_champs?.mid),
+        adc: normalizeChampionName(m.team_a_champs?.adc),
+        sup: normalizeChampionName(m.team_a_champs?.sup),
+      },
+      team_b_champs: {
+        top: normalizeChampionName(m.team_b_champs?.top),
+        jgl: normalizeChampionName(m.team_b_champs?.jgl),
+        mid: normalizeChampionName(m.team_b_champs?.mid),
+        adc: normalizeChampionName(m.team_b_champs?.adc),
+        sup: normalizeChampionName(m.team_b_champs?.sup),
+      },
+      ban_a: (m.ban_a || []).map((b) => normalizeChampionName(b)),
+      ban_b: (m.ban_b || []).map((b) => normalizeChampionName(b)),
+    }));
+
+    if (mode === 'replace') {
+      setMatches(cleanList);
+      showToast(`전적 데이터 전체 복원 완료! (총 ${cleanList.length}경기)`);
+    } else {
+      setMatches((prev) => {
+        const existingIds = new Set(prev.map((m) => String(m.id)));
+        const newOnes = cleanList.filter((m) => !existingIds.has(String(m.id)));
+        const combined = [...newOnes, ...prev].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        showToast(`전적 데이터 병합 완료! (+${newOnes.length}경기 추가)`);
+        return combined;
+      });
+    }
   };
 
   return (
@@ -521,6 +560,7 @@ export default function App() {
             onAddMatch={handleAddMatch}
             onUpdateMatch={handleUpdateMatch}
             onDeleteMatch={handleDeleteMatch}
+            onImportMatches={handleImportMatches}
             isAdmin={isAdmin}
             onAdminLoginSuccess={handleAdminLoginSuccess}
             onToast={showToast}

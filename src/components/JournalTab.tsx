@@ -2,9 +2,28 @@ import React, { useState, useMemo } from 'react';
 import { Match, LineKey, MatchFormat, WinningTeam, LINE_KEYS, LINE_LABELS } from '../types';
 import { ComputedStats, formatPlayerWithChamp, isKdaEmpty, getWoorimingTeam, getWoorimingLine } from '../lib/stats';
 import { ChampionIcon } from './ChampionIcon';
-import { parseKdaString } from '../lib/champions';
+import { parseKdaString, normalizeChampionName } from '../lib/champions';
 import { PASSCODE } from '../data/initialMatches';
-import { Plus, Search, Filter, ShieldAlert, X, Edit2, Trash2, Eye, Save, AlertCircle, CheckCircle2, Sparkles, Trophy } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Filter,
+  ShieldAlert,
+  X,
+  Edit2,
+  Trash2,
+  Eye,
+  Save,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+  Trophy,
+  Download,
+  Upload,
+  FileJson,
+  RotateCcw,
+  Layers,
+} from 'lucide-react';
 
 interface JournalTabProps {
   stats: ComputedStats;
@@ -12,6 +31,7 @@ interface JournalTabProps {
   onAddMatch: (match: Match) => void;
   onUpdateMatch: (match: Match) => void;
   onDeleteMatch: (id: string) => void;
+  onImportMatches?: (matches: Match[], mode: 'replace' | 'merge') => void;
   isAdmin: boolean;
   onAdminLoginSuccess: () => void;
   onToast: (msg: string) => void;
@@ -25,6 +45,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   onAddMatch,
   onUpdateMatch,
   onDeleteMatch,
+  onImportMatches,
   isAdmin,
   onAdminLoginSuccess,
   onToast,
@@ -67,6 +88,14 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deletePasscode, setDeletePasscode] = useState('');
   const [deleteError, setDeleteError] = useState('');
+
+  // Data export/import state
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [importCandidate, setImportCandidate] = useState<{
+    filename: string;
+    matches: Match[];
+  } | null>(null);
+  const [importMode, setImportMode] = useState<'replace' | 'merge'>('replace');
 
   // Filtered matches
   const filteredMatches = matches
@@ -244,6 +273,91 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     setDeleteTargetId(null);
   };
 
+  // Data Export Handler
+  const handleExportData = () => {
+    if (matches.length === 0) {
+      onToast('내보낼 경기 데이터가 없습니다.');
+      return;
+    }
+    try {
+      const dataStr = JSON.stringify(matches, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `wooriming_ck_matches_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      onToast(`전적 데이터 파일(.json) 저장 완료 (총 ${matches.length}경기)`);
+    } catch (e) {
+      console.error('Export error', e);
+      onToast('데이터 내보내기 실패');
+    }
+  };
+
+  // Data Import Handlers
+  const handleImportClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) {
+          onToast('파일 내용이 비어 있습니다.');
+          return;
+        }
+        const parsed = JSON.parse(text);
+        const list: Match[] = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.matches)
+          ? parsed.matches
+          : null;
+
+        if (!list || list.length === 0) {
+          onToast('유효한 경기 데이터(.json)를 찾을 수 없습니다.');
+          return;
+        }
+
+        // Validate basic structure
+        const validList = list.filter(
+          (item) => item && typeof item === 'object' && item.team_a && item.team_b
+        );
+        if (validList.length === 0) {
+          onToast('올바른 CK 일지 전적 형식의 데이터가 아닙니다.');
+          return;
+        }
+
+        setImportCandidate({
+          filename: file.name,
+          matches: validList,
+        });
+        setImportMode('replace');
+      } catch (err) {
+        console.error('JSON parse error', err);
+        onToast('JSON 파일을 파싱하는 도중 오류가 발생했습니다.');
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const handleConfirmImport = () => {
+    if (!importCandidate || !onImportMatches) return;
+    onImportMatches(importCandidate.matches, importMode);
+    setImportCandidate(null);
+  };
+
   return (
     <div className="space-y-6 animate-[fadeIn_0.2s]">
       {/* Top Banner Stats: Most Banned & Most Picked */}
@@ -305,23 +419,40 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               <span className="text-[9px] text-[#5a5a6a]">승(Blue) / 패(Red)</span>
             </div>
             <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+              {/* Direction labels: 과거 (10경기 전) vs 최근 (최신 경기) */}
+              <div className="flex items-center justify-between text-[10px] text-[#7a7a90] mb-1.5 px-0.5 font-medium">
+                <span className="flex items-center gap-1 text-[#6a6a80]">
+                  <span className="text-[9px]">◀</span> 과거 (10경기 전)
+                </span>
+                <span className="flex items-center gap-1 text-[#a78bfa] font-bold">
+                  최신 경기 (최근) <span className="text-[9px]">▶</span>
+                </span>
+              </div>
               <div className="flex gap-1.5">
                 {stats.recentTenMatches.length === 0 ? (
-                  <div className="text-[11px] text-[#5a5a6a]">경기 데이터가 없습니다.</div>
+                  <div className="text-[11px] text-[#5a5a6a] py-1 text-center w-full">경기 데이터가 없습니다.</div>
                 ) : (
-                  stats.recentTenMatches.map(({ match, won }) => (
-                    <div
-                      key={match.id}
-                      className={`flex-1 h-[30px] rounded-[6px] flex items-center justify-center text-[11px] font-black border transition-transform hover:scale-105 ${
-                        won
-                          ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
-                          : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
-                      }`}
-                      title={`${match.date} ${match.ck_name} - ${won ? '승리' : '패배'}`}
-                    >
-                      {won ? '승' : '패'}
-                    </div>
-                  ))
+                  stats.recentTenMatches.map(({ match, won }, idx) => {
+                    const isLatest = idx === stats.recentTenMatches.length - 1;
+                    return (
+                      <div
+                        key={match.id}
+                        className={`flex-1 h-[32px] rounded-[6px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative ${
+                          won
+                            ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
+                            : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
+                        } ${isLatest ? 'ring-1 ring-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.3)]' : ''}`}
+                        title={`${match.date} ${match.ck_name} - ${won ? '승리' : '패배'} ${isLatest ? '(가장 최신 경기)' : ''}`}
+                      >
+                        <span className="text-[11px] leading-none">{won ? '승' : '패'}</span>
+                        {isLatest && (
+                          <span className="text-[7px] text-[#c4b5fd] font-bold leading-none mt-0.5">
+                            최신
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -403,14 +534,44 @@ export const JournalTab: React.FC<JournalTabProps> = ({
           </select>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAddModal}
-          className="h-[36px] px-4 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-full text-[12px] font-semibold flex items-center gap-1.5 shadow transition"
-        >
-          <Plus size={14} />
-          <span>경기 추가</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".json,application/json"
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={handleExportData}
+            title="기존 전적 데이터를 JSON 파일로 다운로드 백업합니다."
+            className="h-[36px] px-3.5 bg-[#181824] hover:bg-[#222234] border border-[#2a2a3e] text-[#c0c0d8] hover:text-white rounded-full text-[12px] font-semibold flex items-center gap-1.5 transition active:scale-95"
+          >
+            <Download size={14} className="text-[#a78bfa]" />
+            <span>데이터 내보내기</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleImportClick}
+            title="백업된 JSON 파일로부터 전적 데이터를 불러와 복원합니다."
+            className="h-[36px] px-3.5 bg-[#181824] hover:bg-[#222234] border border-[#2a2a3e] text-[#c0c0d8] hover:text-white rounded-full text-[12px] font-semibold flex items-center gap-1.5 transition active:scale-95"
+          >
+            <Upload size={14} className="text-[#38bdf8]" />
+            <span>데이터 불러오기</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="h-[36px] px-4 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-full text-[12px] font-semibold flex items-center gap-1.5 shadow transition active:scale-95"
+          >
+            <Plus size={14} />
+            <span>경기 추가</span>
+          </button>
+        </div>
       </div>
 
       {/* Match Records List (OP.GG / image_1.png Independent Card Layout) */}
@@ -1202,6 +1363,124 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                 className="flex-1 h-[36px] bg-[#ef4444] hover:bg-[#dc2626] text-white rounded-full text-[12px] font-bold"
               >
                 삭제하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Data Import Confirmation Modal */}
+      {importCandidate && (
+        <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#12121a] border border-[#2a2a3a] rounded-[20px] max-w-[460px] w-full p-6 shadow-2xl animate-[scaleUp_0.15s]">
+            <div className="flex items-center justify-between mb-4 border-b border-[#1e1e2a] pb-3">
+              <div className="flex items-center gap-2 text-white font-bold text-[15px]">
+                <FileJson className="text-[#38bdf8]" size={18} />
+                <span>전적 데이터 불러오기</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportCandidate(null)}
+                className="text-[#8a8aa0] hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3.5 mb-4 text-[12px] space-y-1.5">
+              <div className="flex justify-between text-[#8a8aa0]">
+                <span>선택된 파일:</span>
+                <span className="text-white font-mono truncate max-w-[240px]">
+                  {importCandidate.filename}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#8a8aa0]">
+                <span>불러올 경기 수:</span>
+                <span className="text-[#38bdf8] font-bold">
+                  총 {importCandidate.matches.length}경기
+                </span>
+              </div>
+              <div className="flex justify-between text-[#8a8aa0]">
+                <span>현재 등록된 경기 수:</span>
+                <span className="text-[#a78bfa] font-bold">
+                  총 {matches.length}경기
+                </span>
+              </div>
+            </div>
+
+            {/* Mode selection */}
+            <div className="space-y-2 mb-5">
+              <div className="text-[11px] text-[#8a8aa0] font-semibold mb-1">
+                불러오기 방식 선택:
+              </div>
+              <label
+                onClick={() => setImportMode('replace')}
+                className={`flex items-start gap-3 p-3 rounded-[12px] border cursor-pointer transition ${
+                  importMode === 'replace'
+                    ? 'bg-[#8b5cf6]/15 border-[#8b5cf6] text-white'
+                    : 'bg-[#08080c] border-[#1e1e2a] text-[#8a8aa0] hover:border-[#2e2e3e]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="importMode"
+                  checked={importMode === 'replace'}
+                  onChange={() => setImportMode('replace')}
+                  className="mt-0.5 accent-[#8b5cf6]"
+                />
+                <div className="text-left">
+                  <div className="text-[12px] font-bold flex items-center gap-1.5 text-[#e0e0f0]">
+                    <RotateCcw size={13} className="text-[#a78bfa]" />
+                    <span>전체 덮어쓰기 (원복)</span>
+                  </div>
+                  <div className="text-[11px] text-[#8a8aa0] mt-0.5 leading-snug">
+                    기존 전적을 모두 지우고 파일에 저장된 전적 데이터({importCandidate.matches.length}경기)로 완전히 복원합니다.
+                  </div>
+                </div>
+              </label>
+
+              <label
+                onClick={() => setImportMode('merge')}
+                className={`flex items-start gap-3 p-3 rounded-[12px] border cursor-pointer transition ${
+                  importMode === 'merge'
+                    ? 'bg-[#38bdf8]/15 border-[#38bdf8] text-white'
+                    : 'bg-[#08080c] border-[#1e1e2a] text-[#8a8aa0] hover:border-[#2e2e3e]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="importMode"
+                  checked={importMode === 'merge'}
+                  onChange={() => setImportMode('merge')}
+                  className="mt-0.5 accent-[#38bdf8]"
+                />
+                <div className="text-left">
+                  <div className="text-[12px] font-bold flex items-center gap-1.5 text-[#e0e0f0]">
+                    <Layers size={13} className="text-[#38bdf8]" />
+                    <span>기존 데이터에 병합 (신규 경기 추가)</span>
+                  </div>
+                  <div className="text-[11px] text-[#8a8aa0] mt-0.5 leading-snug">
+                    현재 전적 기록을 유지하면서, 파일에서 중복되지 않은 신규 경기만 추가합니다.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setImportCandidate(null)}
+                className="flex-1 h-[38px] bg-[#1e1e2a] hover:bg-[#2a2a3a] text-[#c0c0d0] rounded-full text-[12px] transition"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmImport}
+                className="flex-1 h-[38px] bg-[#38bdf8] hover:bg-[#0284c7] text-[#08080c] font-bold rounded-full text-[12px] transition flex items-center justify-center gap-1.5"
+              >
+                <Upload size={14} />
+                <span>데이터 불러오기 실행</span>
               </button>
             </div>
           </div>
