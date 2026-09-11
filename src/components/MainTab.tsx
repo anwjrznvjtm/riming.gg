@@ -278,392 +278,511 @@ export const MainTab: React.FC<MainTabProps> = ({
   const circumference = 2 * Math.PI * 62;
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 md:gap-8">
-      {/* Left Column: Wooriming Profile & Best Partners */}
-      <div className="md:w-[35%] w-full space-y-4">
-        {/* Donut Card */}
-        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 md:p-8 flex flex-col items-center">
-          <div
-            onClick={onOpenSummaryModal}
-            title="클릭하면 전체 전적 상세 보기"
-            className="relative w-[140px] h-[140px] flex items-center justify-center cursor-pointer hover:scale-[1.04] transition-transform group"
-          >
-            <svg width="140" height="140" className="absolute inset-0 -rotate-90">
-              <circle cx="70" cy="70" r="62" stroke="#1e1e2a" strokeWidth="8" fill="none" />
-              <circle
-                cx="70"
-                cy="70"
-                r="62"
-                stroke="#8b5cf6"
-                strokeWidth="8"
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={circumference - (circumference * displayWinrate) / 100}
-                style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-              />
-            </svg>
-            <div className="w-[112px] h-[112px] rounded-full bg-[#08080c] border border-[#1e1e2a] group-hover:border-[#8b5cf6]/40 flex flex-col items-center justify-center transition-colors">
-              <div className="text-[28px] font-black tracking-tight text-white">우</div>
-              <div className="text-[20px] font-bold text-[#8b5cf6]">
-                {displayWinrate.toFixed(0)}%
+    <div className="space-y-6 animate-[fadeIn_0.2s]">
+      {/* 1. 상단: 우리밍_ 프로필 & 승률 도넛 + CK 밸런서 (10인 팀 입력 & 시너지 분석) */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Left: Donut Card */}
+        <div className="lg:w-[320px] w-full shrink-0">
+          <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 md:p-8 flex flex-col items-center h-full justify-between">
+            <div className="flex flex-col items-center">
+              <div
+                onClick={onOpenSummaryModal}
+                title="클릭하면 전체 전적 상세 보기"
+                className="relative w-[140px] h-[140px] flex items-center justify-center cursor-pointer hover:scale-[1.04] transition-transform group"
+              >
+                <svg width="140" height="140" className="absolute inset-0 -rotate-90">
+                  <circle cx="70" cy="70" r="62" stroke="#1e1e2a" strokeWidth="8" fill="none" />
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r="62"
+                    stroke="#8b5cf6"
+                    strokeWidth="8"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={circumference - (circumference * displayWinrate) / 100}
+                    style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+                  />
+                </svg>
+                <div className="w-[112px] h-[112px] rounded-full bg-[#08080c] border border-[#1e1e2a] group-hover:border-[#8b5cf6]/40 flex flex-col items-center justify-center transition-colors">
+                  <div className="text-[28px] font-black tracking-tight text-white">우</div>
+                  <div className="text-[20px] font-bold text-[#8b5cf6]">
+                    {displayWinrate.toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 text-center">
+                <div className="text-[18px] font-bold tracking-tight text-white">우리밍_</div>
+                <div className="mt-2 inline-flex items-center gap-2 bg-[#1e1e2a] border border-[#2a2a3a] rounded-full px-3 py-1 text-[11px] text-[#a0a0b8]">
+                  <span>이번달 ({stats.latestMonth})</span>
+                  <span>•</span>
+                  <span className="font-semibold text-[#a78bfa]">{stats.dominantMonthRole}</span>
+                </div>
+              </div>
+
+              <div className="mt-4 text-[13px] text-[#c0c0d0] font-medium">
+                {stats.thisMonthWinrate.wins}승 {stats.thisMonthWinrate.losses}패 / 총{' '}
+                {stats.thisMonthWinrate.total}판
               </div>
             </div>
-          </div>
 
-          <div className="mt-5 text-center">
-            <div className="text-[18px] font-bold tracking-tight text-white">우리밍_</div>
-            <div className="mt-2 inline-flex items-center gap-2 bg-[#1e1e2a] border border-[#2a2a3a] rounded-full px-3 py-1 text-[11px] text-[#a0a0b8]">
-              <span>이번달 ({stats.latestMonth})</span>
-              <span>•</span>
-              <span className="font-semibold text-[#a78bfa]">{stats.dominantMonthRole}</span>
-            </div>
+            <button
+              type="button"
+              onClick={onOpenSummaryModal}
+              className="mt-5 w-full py-2 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] text-[#c0c0d0] hover:text-white rounded-full text-[12px] font-medium transition"
+            >
+              전체 전적 상세 보기
+            </button>
           </div>
-
-          <div className="mt-4 text-[13px] text-[#c0c0d0] font-medium">
-            {stats.thisMonthWinrate.wins}승 {stats.thisMonthWinrate.losses}패 / 총{' '}
-            {stats.thisMonthWinrate.total}판
-          </div>
-          <div className="mt-1 text-[11px] text-[#6a6a80]">클릭하면 전체 전적 보기</div>
         </div>
 
-        {/* Best Partners Card (Moved here under profile) */}
-        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
-          <div className="flex justify-between items-center mb-1">
-            <h2 className="text-[15px] font-bold text-white">이번달 라인별 Best 파트너</h2>
-            <span className="text-[11px] text-[#a78bfa] font-medium bg-[#8b5cf6]/10 px-2.5 py-0.5 rounded-full">
-              {stats.dominantMonthRole} 기준
+        {/* Right: CK 밸런서 & Line-by-line Roster Input & Optimizer */}
+        <div className="flex-1 space-y-4">
+          {/* Banner */}
+          <div className="bg-gradient-to-r from-[#8b5cf6]/25 to-[#8b5cf6]/5 border border-[#8b5cf6]/40 rounded-[16px] p-4 flex items-start gap-3 shadow-[0_0_20px_rgba(139,92,246,0.15)]">
+            <div className="text-[18px]">⚡</div>
+            <div className="text-[13px] md:text-[14px] font-bold leading-[1.4] text-[#ece4ff] flex-1">
+              승률 기반으로 최고의 시너지팀을 짜드립니다 - CK 10인 이름을 넣으면 최적의 5:5를 추천
+            </div>
+            <span className="shrink-0 inline-flex bg-[#8b5cf6] text-white text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide">
+              CK 밸런서
             </span>
           </div>
-          <div className="text-[11px] text-[#6a6a80] mb-3">
-            {stats.latestMonth} 경기 기준 • 함께 이긴 승률이 가장 높은 파트너
-          </div>
 
-          <div className="grid grid-cols-1 gap-2.5">
-            {bestPartners.map((item) => {
-              const itemChamps = item.best
-                ? getPlayerLineChampionStats(item.best.name, item.line as LineName, matches).slice(0, 3)
-                : [];
-
-              return (
-                <div
-                  key={item.line}
-                  className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3 hover:border-[#8b5cf6]/30 transition"
+          {/* Input Card */}
+          <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[16px] font-bold text-white flex items-center gap-2">
+                <span>라인별 팀 입력</span>
+                <span className="text-[11px] font-normal text-[#8a8aa0]">(10인 명단)</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleClearTeams}
+                  className="h-[30px] px-3 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] text-[#a0a0b8] transition"
                 >
-                  <div className="flex justify-between items-center text-[10px] tracking-wider text-[#8a8aa0] font-semibold">
-                    <span>{item.line} 라인 Best</span>
+                  비우기
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFillExample}
+                  className="h-[30px] px-3 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] text-[#c0c0d0] flex items-center gap-1.5 transition"
+                >
+                  <Sparkles size={12} className="text-[#a78bfa]" />
+                  <span>등록 선수 채우기</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Red Team Input */}
+              <div className="bg-[rgba(239,68,68,0.05)] border border-[rgba(239,68,68,0.18)] rounded-[14px] p-3.5">
+                <div className="text-[12px] font-bold mb-3 flex items-center gap-2 text-[#ef4444]">
+                  🔴 Red팀
+                </div>
+                <div className="space-y-2">
+                  {LINE_KEYS.map((k) => (
+                    <div key={`A-${k}`} className="flex items-center gap-2">
+                      <span className="w-[36px] text-[11px] font-bold text-[#8a8aa0] tracking-widest">
+                        {LINE_LABELS[k]}
+                      </span>
+                      <input
+                        id={`teamA-${k}`}
+                        value={teamA[k]}
+                        onChange={(e) => setTeamA((prev) => ({ ...prev, [k]: e.target.value }))}
+                        placeholder="스트리머 이름"
+                        list="players-datalist"
+                        className="flex-1 h-[34px] bg-[#12121a] border border-[rgba(239,68,68,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#ef4444]/60 transition"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Blue Team Input */}
+              <div className="bg-[rgba(59,130,246,0.05)] border border-[rgba(59,130,246,0.18)] rounded-[14px] p-3.5">
+                <div className="text-[12px] font-bold mb-3 flex items-center gap-2 text-[#3b82f6]">
+                  🔵 Blue팀
+                </div>
+                <div className="space-y-2">
+                  {LINE_KEYS.map((k) => (
+                    <div key={`B-${k}`} className="flex items-center gap-2">
+                      <span className="w-[36px] text-[11px] font-bold text-[#8a8aa0] tracking-widest">
+                        {LINE_LABELS[k]}
+                      </span>
+                      <input
+                        id={`teamB-${k}`}
+                        value={teamB[k]}
+                        onChange={(e) => setTeamB((prev) => ({ ...prev, [k]: e.target.value }))}
+                        placeholder="스트리머 이름"
+                        list="players-datalist"
+                        className="flex-1 h-[34px] bg-[#12121a] border border-[rgba(59,130,246,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#3b82f6]/60 transition"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {errorMsg && (
+              <div className="mt-3 text-[12px] text-[#ff6b6b] bg-[#2a1a1a]/60 border border-[#ff6b6b]/30 rounded-[10px] px-3.5 py-2">
+                ⚠️ {errorMsg}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2.5">
+              <button
+                type="button"
+                onClick={handleAnalyzeCurrent}
+                className="h-[36px] px-4 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[12px] font-semibold text-[#c0c0d0] transition"
+              >
+                현재 팀 시너지 분석
+              </button>
+              <button
+                type="button"
+                onClick={handleOptimizeTeams}
+                className="h-[36px] px-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-full text-[12px] font-bold shadow-[0_0_15px_rgba(139,92,246,0.3)] transition"
+              >
+                승률 기반 최적 팀으로 재배치
+              </button>
+            </div>
+
+            {/* Synergy Analysis Output Card */}
+            {analysisResult && (
+              <div
+                ref={resultRef}
+                className="mt-5 bg-[#0f0f18] border border-[#1e1e2a] rounded-[16px] overflow-hidden transition-all shadow-xl"
+              >
+                <div className="flex items-center justify-between px-4 py-3 bg-[#12121a] border-b border-[#1e1e2a]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-white">분석 결과</span>
+                    <span className="text-[11px] bg-[#8b5cf6]/20 text-[#a78bfa] border border-[#8b5cf6]/30 px-2.5 py-0.5 rounded-full font-medium">
+                      {analysisResult.mode === 'optimal' ? '최적 재배치' : '현재 팀 분석'} • 예상 승률{' '}
+                      {analysisResult.expected.toFixed(1)}%
+                    </span>
                   </div>
-                  {item.best ? (
-                    <>
-                      <div className="mt-1 flex justify-between items-center">
-                        <span className="text-[13px] font-bold text-white">
-                          {item.best.name}{' '}
-                          <span className="text-[11px] font-normal text-[#8a8aa0]">
-                            ({item.best.line})
-                          </span>
-                        </span>
-                        <span className="text-[12px] text-[#8b5cf6] font-bold">
-                          {((item.best.wins / item.best.games) * 100).toFixed(0)}%
-                        </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsResultCollapsed((prev) => !prev)}
+                      className="h-[26px] px-2.5 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] text-[#c0c0d0] flex items-center gap-1"
+                    >
+                      {isResultCollapsed ? (
+                        <>
+                          <ChevronDown size={12} /> 펼치기
+                        </>
+                      ) : (
+                        <>
+                          <ChevronUp size={12} /> 접기
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAnalysisResult(null)}
+                      className="h-[26px] w-[26px] bg-[#2a1a1a] hover:bg-[#3a1a1a] border border-[#3a2a2a] rounded-full text-[12px] text-[#ff8a8a] flex items-center justify-center"
+                      title="닫기"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {!isResultCollapsed && (
+                  <div className="p-4 grid md:grid-cols-2 gap-4">
+                    {/* Team A Roster Card */}
+                    <div className="bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.25)] rounded-[14px] p-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="text-[13px] font-bold text-[#ef4444]">
+                          {analysisResult.mode === 'optimal'
+                            ? '최적 🔴 Red팀 (우리밍_팀)'
+                            : `🔴 Red팀 ${analysisResult.wTeam === 'Red' ? '(우리밍_팀)' : ''}`}
+                        </div>
+                        <div className="text-[11px] bg-[#ef4444] text-white px-2 py-0.5 rounded-full font-bold">
+                          {analysisResult.expected.toFixed(1)}% 예상 승률
+                        </div>
                       </div>
-                      <div className="mt-0.5 text-[11px] text-[#c0c0d0]">
-                        {item.best.games}전 {item.best.wins}승 {item.best.games - item.best.wins}패
-                      </div>
-                      <div className="mt-1.5 h-[3px] bg-[#1e1e2a] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#8b5cf6]"
-                          style={{ width: `${(item.best.wins / item.best.games) * 100}%` }}
-                        />
-                      </div>
-                      {itemChamps.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
-                          <div className="text-[10px] text-[#8a8aa0] flex items-center justify-between">
-                            <span>{item.line} 모스트</span>
-                            <span className="text-[9px] text-[#a78bfa]">TOP {itemChamps.length}</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {itemChamps.map((c) => (
-                              <div
-                                key={c.champ}
-                                className="inline-flex items-center gap-1 bg-[#12121c] border border-[#252538] px-1.5 py-0.5 rounded-[6px] text-[10px]"
-                                title={`${c.champ}: ${c.games}판 ${c.wins}승 ${c.losses}패 (${c.winrate.toFixed(0)}%)`}
+
+                      <div className="space-y-1.5">
+                        {analysisResult.teamA.map((p) => (
+                          <div
+                            key={`RA-${p.line}-${p.player}`}
+                            className="flex justify-between items-center text-[12px] bg-[#12121a] rounded-[8px] px-2.5 py-1.5 border border-[#1e1e2a]"
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="text-[10px] text-[#6a6a80] w-[30px] font-bold">
+                                {p.line}
+                              </span>
+                              <span
+                                className={
+                                  isWooriming(p.player) ? 'font-bold text-[#8b5cf6]' : 'text-white'
+                                }
                               >
-                                <ChampionIcon name={c.champ} size={13} />
-                                <span className="font-semibold text-white truncate max-w-[50px]">{c.champ}</span>
-                                <span className="text-[#8a8aa0] text-[9px]">{c.games}판</span>
-                                <span
-                                  className={`text-[9px] font-bold ${
-                                    c.winrate >= 50 ? 'text-[#38bdf8]' : 'text-[#f87171]'
-                                  }`}
-                                >
-                                  ({c.winrate.toFixed(0)}%)
-                                </span>
-                              </div>
-                            ))}
+                                {p.player}
+                              </span>
+                            </span>
+                            {!isWooriming(p.player) && (
+                              <span className="text-[#8b5cf6] text-[11px] font-semibold">
+                                {(getPlayerSynergyRate(WOORIMING, p.player, stats.pairWinrates) * 100).toFixed(0)}
+                                %
+                              </span>
+                            )}
                           </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-[#8a8aa0] space-y-1 border-t border-[#1e1e2a] pt-2">
+                        <div className="text-[10px] text-[#6a6a80] font-semibold mb-1">우리밍_과의 판수 & 승률</div>
+                        {analysisResult.breakdown.map((b) => (
+                          <div key={b.name} className="flex justify-between text-[11px]">
+                            <span>
+                              {b.name} ({b.line})
+                            </span>
+                            <span className="text-[#c0c0d0]">
+                              {b.winrate.toFixed(0)}% ({b.games}판)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Team B Roster Card */}
+                    <div className="bg-[rgba(59,130,246,0.06)] border border-[rgba(59,130,246,0.25)] rounded-[14px] p-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="text-[13px] font-bold text-[#3b82f6]">
+                          {analysisResult.mode === 'optimal'
+                            ? '최적 🔵 Blue팀 (상대팀)'
+                            : `🔵 Blue팀 ${analysisResult.wTeam === 'Blue' ? '(우리밍_팀)' : ''}`}
+                        </div>
+                        <div className="text-[11px] bg-[#3b82f6] text-white px-2 py-0.5 rounded-full font-bold">
+                          {(100 - analysisResult.expected).toFixed(1)}% 예상 승률
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {analysisResult.teamB.map((p) => (
+                          <div
+                            key={`RB-${p.line}-${p.player}`}
+                            className="flex justify-between items-center text-[12px] bg-[#12121a] rounded-[8px] px-2.5 py-1.5 border border-[#1e1e2a]"
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="text-[10px] text-[#6a6a80] w-[30px] font-bold">
+                                {p.line}
+                              </span>
+                              <span className="text-white">{p.player}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {analysisResult.mode === 'optimal' && (
+                        <div className="mt-3 text-[10px] text-[#6a6a80] leading-relaxed">
+                          * 라인 배치는 각 플레이어의 주 포지션(과거 경기 데이터 빈도)을 반영하여 자동 분배되었습니다.
                         </div>
                       )}
-                    </>
-                  ) : (
-                    <div className="mt-1.5 text-[11px] text-[#5a5a6a]">승리 기록 없음</div>
-                  )}
-                </div>
-              );
-            })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Right Column: Line-by-line Roster Input & Optimizer */}
-      <div className="md:w-[65%] w-full space-y-6">
-        {/* Banner */}
-        <div className="bg-gradient-to-r from-[#8b5cf6]/25 to-[#8b5cf6]/5 border border-[#8b5cf6]/40 rounded-[16px] p-4 flex items-start gap-3 shadow-[0_0_20px_rgba(139,92,246,0.15)]">
-          <div className="text-[18px]">⚡</div>
-          <div className="text-[13px] md:text-[14px] font-bold leading-[1.4] text-[#ece4ff] flex-1">
-            승률 기반으로 최고의 시너지팀을 짜드립니다 - CK 10인 이름을 넣으면 최적의 5:5를 추천
+      {/* 2. 중단: [승률 추이 & 최근 10경기 흐름] (좌) + [이번달 라인별 Best 파트너] (우) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left: 승률 추이 & 최근 10경기 흐름 */}
+        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col justify-between">
+          <div>
+            <div className="text-[14px] font-bold mb-3 flex items-center justify-between text-white">
+              <span className="flex items-center gap-2">📊 승률 추이</span>
+              <span className="text-[11px] font-normal text-[#8a8aa0]">2026 시즌</span>
+            </div>
+
+            <div className="flex justify-between items-center bg-[#08080c] border border-[#1e1e2a] rounded-[10px] px-3.5 py-2 mb-3.5">
+              <span className="text-[12px] text-[#8a8aa0]">전체 승률</span>
+              <span className="text-[14px] font-bold text-[#8b5cf6]">
+                {stats.overallWinrate.winrate.toFixed(0)}% ({stats.overallWinrate.wins}승{' '}
+                {stats.overallWinrate.losses}패)
+              </span>
+            </div>
+
+            {/* Monthly Bar chart */}
+            <div className="mb-4">
+              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold">월별 승률</div>
+              <div className="flex items-end gap-2 h-20 bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+                {stats.monthlyStats
+                  .filter((m) => m.month >= '2026-07')
+                  .reverse()
+                  .map((m) => {
+                    const rate = m.winrate;
+                    const barColor = rate >= 60 ? '#8b5cf6' : rate >= 50 ? '#6366f1' : '#4b5563';
+                    const barHeight = Math.max(6, (rate / 100) * 50);
+                    return (
+                      <div
+                        key={m.month}
+                        className="flex-1 flex flex-col items-center justify-end h-full"
+                      >
+                        <div className="text-[9px] font-bold text-[#c0c0d0] mb-0.5">
+                          {rate.toFixed(0)}%
+                        </div>
+                        <div
+                          className="w-full rounded-t-[4px] transition-all"
+                          style={{ height: `${barHeight}px`, background: barColor, minHeight: '6px' }}
+                          title={`${m.month} ${rate.toFixed(1)}% (${m.wins}승 ${m.losses}패)`}
+                        />
+                        <div className="text-[9px] text-[#6a6a80] mt-1 whitespace-nowrap">
+                          {m.month.slice(5)}월
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
           </div>
-          <span className="shrink-0 inline-flex bg-[#8b5cf6] text-white text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide">
-            CK 밸런서
-          </span>
+
+          {/* Recent 10 games streak with Blue (우리밍_ 승) / Red (우리밍_ 패) */}
+          <div className="mt-2">
+            <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex items-center justify-between">
+              <span>최근 10경기 흐름</span>
+              <span className="text-[9px] text-[#8a8aa0]">승(Blue) / 패(Red) • 우리밍_ 승패 기준</span>
+            </div>
+            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+              {/* Direction labels: 왼쪽 [10경기 전], 오른쪽 [최신 경기] */}
+              <div className="flex items-center justify-between text-[10px] mb-2 px-1 font-medium">
+                <span className="flex items-center gap-1 text-[#8a8aa0] bg-[#1e1e2a] px-2 py-0.5 rounded">
+                  [10경기 전]
+                </span>
+                <span className="flex items-center gap-1 text-[#a78bfa] bg-[#8b5cf6]/15 border border-[#8b5cf6]/30 px-2 py-0.5 rounded font-bold">
+                  [최신 경기]
+                </span>
+              </div>
+              <div className="flex gap-1.5">
+                {stats.recentTenMatches.length === 0 ? (
+                  <div className="text-[11px] text-[#5a5a6a] py-2 text-center w-full">경기 데이터가 없습니다.</div>
+                ) : (
+                  stats.recentTenMatches.map(({ match, won }, idx) => {
+                    const isLatest = idx === stats.recentTenMatches.length - 1;
+                    return (
+                      <div
+                        key={match.id}
+                        className={`flex-1 h-[34px] rounded-[6px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative ${
+                          won
+                            ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
+                            : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
+                        } ${isLatest ? 'ring-1 ring-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.3)]' : ''}`}
+                        title={`${match.date} ${match.ck_name} - 우리밍_ ${won ? '승리' : '패배'} ${isLatest ? '(가장 최신 경기)' : ''}`}
+                      >
+                        <span className="text-[11px] leading-none">{won ? '승' : '패'}</span>
+                        {isLatest && (
+                          <span className="text-[7px] text-[#c4b5fd] font-bold leading-none mt-0.5">
+                            최신
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Input Card */}
-        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[16px] font-bold text-white flex items-center gap-2">
-              <span>라인별 팀 입력</span>
-              <span className="text-[11px] font-normal text-[#8a8aa0]">(10인 명단)</span>
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleClearTeams}
-                className="h-[30px] px-3 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] text-[#a0a0b8] transition"
-              >
-                비우기
-              </button>
-              <button
-                type="button"
-                onClick={handleFillExample}
-                className="h-[30px] px-3 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] text-[#c0c0d0] flex items-center gap-1.5 transition"
-              >
-                <Sparkles size={12} className="text-[#a78bfa]" />
-                <span>등록 선수 채우기</span>
-              </button>
+        {/* Right: 이번달 라인별 Best 파트너 */}
+        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
+                <span>🤝</span>
+                <span>이번달 라인별 Best 파트너</span>
+              </h2>
+              <span className="text-[11px] text-[#a78bfa] font-medium bg-[#8b5cf6]/10 px-2.5 py-0.5 rounded-full">
+                {stats.dominantMonthRole} 기준
+              </span>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Red Team Input */}
-            <div className="bg-[rgba(239,68,68,0.05)] border border-[rgba(239,68,68,0.18)] rounded-[14px] p-3.5">
-              <div className="text-[12px] font-bold mb-3 flex items-center gap-2 text-[#ef4444]">
-                🔴 Red팀
-              </div>
-              <div className="space-y-2">
-                {LINE_KEYS.map((k) => (
-                  <div key={`A-${k}`} className="flex items-center gap-2">
-                    <span className="w-[36px] text-[11px] font-bold text-[#8a8aa0] tracking-widest">
-                      {LINE_LABELS[k]}
-                    </span>
-                    <input
-                      id={`teamA-${k}`}
-                      value={teamA[k]}
-                      onChange={(e) => setTeamA((prev) => ({ ...prev, [k]: e.target.value }))}
-                      placeholder="스트리머 이름"
-                      list="players-datalist"
-                      className="flex-1 h-[34px] bg-[#12121a] border border-[rgba(239,68,68,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#ef4444]/60 transition"
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="text-[11px] text-[#6a6a80] mb-3">
+              {stats.latestMonth} 경기 기준 • 함께 이긴 승률이 가장 높은 파트너
             </div>
 
-            {/* Blue Team Input */}
-            <div className="bg-[rgba(59,130,246,0.05)] border border-[rgba(59,130,246,0.18)] rounded-[14px] p-3.5">
-              <div className="text-[12px] font-bold mb-3 flex items-center gap-2 text-[#3b82f6]">
-                🔵 Blue팀
-              </div>
-              <div className="space-y-2">
-                {LINE_KEYS.map((k) => (
-                  <div key={`B-${k}`} className="flex items-center gap-2">
-                    <span className="w-[36px] text-[11px] font-bold text-[#8a8aa0] tracking-widest">
-                      {LINE_LABELS[k]}
-                    </span>
-                    <input
-                      id={`teamB-${k}`}
-                      value={teamB[k]}
-                      onChange={(e) => setTeamB((prev) => ({ ...prev, [k]: e.target.value }))}
-                      placeholder="스트리머 이름"
-                      list="players-datalist"
-                      className="flex-1 h-[34px] bg-[#12121a] border border-[rgba(59,130,246,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#3b82f6]/60 transition"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {bestPartners.map((item) => {
+                const itemChamps = item.best
+                  ? getPlayerLineChampionStats(item.best.name, item.line as LineName, matches).slice(0, 3)
+                  : [];
 
-          {errorMsg && (
-            <div className="mt-3 text-[12px] text-[#ff6b6b] bg-[#2a1a1a]/60 border border-[#ff6b6b]/30 rounded-[10px] px-3.5 py-2">
-              ⚠️ {errorMsg}
-            </div>
-          )}
-
-          <div className="mt-4 flex flex-wrap gap-2.5">
-            <button
-              type="button"
-              onClick={handleAnalyzeCurrent}
-              className="h-[36px] px-4 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[12px] font-semibold text-[#c0c0d0] transition"
-            >
-              현재 팀 시너지 분석
-            </button>
-            <button
-              type="button"
-              onClick={handleOptimizeTeams}
-              className="h-[36px] px-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-full text-[12px] font-bold shadow-[0_0_15px_rgba(139,92,246,0.3)] transition"
-            >
-              승률 기반 최적 팀으로 재배치
-            </button>
-          </div>
-
-          {/* Synergy Analysis Output Card */}
-          {analysisResult && (
-            <div
-              ref={resultRef}
-              className="mt-5 bg-[#0f0f18] border border-[#1e1e2a] rounded-[16px] overflow-hidden transition-all shadow-xl"
-            >
-              <div className="flex items-center justify-between px-4 py-3 bg-[#12121a] border-b border-[#1e1e2a]">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-white">분석 결과</span>
-                  <span className="text-[11px] bg-[#8b5cf6]/20 text-[#a78bfa] border border-[#8b5cf6]/30 px-2.5 py-0.5 rounded-full font-medium">
-                    {analysisResult.mode === 'optimal' ? '최적 재배치' : '현재 팀 분석'} • 예상 승률{' '}
-                    {analysisResult.expected.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsResultCollapsed((prev) => !prev)}
-                    className="h-[26px] px-2.5 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] text-[#c0c0d0] flex items-center gap-1"
+                return (
+                  <div
+                    key={item.line}
+                    className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-3 hover:border-[#8b5cf6]/30 transition flex flex-col justify-between"
                   >
-                    {isResultCollapsed ? (
-                      <>
-                        <ChevronDown size={12} /> 펼치기
-                      </>
-                    ) : (
-                      <>
-                        <ChevronUp size={12} /> 접기
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnalysisResult(null)}
-                    className="h-[26px] w-[26px] bg-[#2a1a1a] hover:bg-[#3a1a1a] border border-[#3a2a2a] rounded-full text-[12px] text-[#ff8a8a] flex items-center justify-center"
-                    title="닫기"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              </div>
-
-              {!isResultCollapsed && (
-                <div className="p-4 grid md:grid-cols-2 gap-4">
-                  {/* Team A Roster Card */}
-                  <div className="bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.25)] rounded-[14px] p-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="text-[13px] font-bold text-[#ef4444]">
-                        {analysisResult.mode === 'optimal'
-                          ? '최적 🔴 Red팀 (우리밍_팀)'
-                          : `🔴 Red팀 ${analysisResult.wTeam === 'Red' ? '(우리밍_팀)' : ''}`}
+                    <div>
+                      <div className="flex justify-between items-center text-[10px] tracking-wider text-[#8a8aa0] font-semibold">
+                        <span>{item.line} 라인 Best</span>
                       </div>
-                      <div className="text-[11px] bg-[#ef4444] text-white px-2 py-0.5 rounded-full font-bold">
-                        {analysisResult.expected.toFixed(1)}% 예상 승률
-                      </div>
+                      {item.best ? (
+                        <>
+                          <div className="mt-1 flex justify-between items-center">
+                            <span className="text-[13px] font-bold text-white">
+                              {item.best.name}{' '}
+                              <span className="text-[11px] font-normal text-[#8a8aa0]">
+                                ({item.best.line})
+                              </span>
+                            </span>
+                            <span className="text-[12px] text-[#8b5cf6] font-bold">
+                              {((item.best.wins / item.best.games) * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-[#c0c0d0]">
+                            {item.best.games}전 {item.best.wins}승 {item.best.games - item.best.wins}패
+                          </div>
+                          <div className="mt-1.5 h-[3px] bg-[#1e1e2a] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-[#8b5cf6]"
+                              style={{ width: `${(item.best.wins / item.best.games) * 100}%` }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-1.5 text-[11px] text-[#5a5a6a]">승리 기록 없음</div>
+                      )}
                     </div>
 
-                    <div className="space-y-1.5">
-                      {analysisResult.teamA.map((p) => (
-                        <div
-                          key={`RA-${p.line}-${p.player}`}
-                          className="flex justify-between items-center text-[12px] bg-[#12121a] rounded-[8px] px-2.5 py-1.5 border border-[#1e1e2a]"
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="text-[10px] text-[#6a6a80] w-[30px] font-bold">
-                              {p.line}
-                            </span>
-                            <span
-                              className={
-                                isWooriming(p.player) ? 'font-bold text-[#8b5cf6]' : 'text-white'
-                              }
+                    {item.best && itemChamps.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+                        <div className="text-[10px] text-[#8a8aa0] flex items-center justify-between">
+                          <span>{item.line} 모스트</span>
+                          <span className="text-[9px] text-[#a78bfa]">TOP {itemChamps.length}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {itemChamps.map((c) => (
+                            <div
+                              key={c.champ}
+                              className="inline-flex items-center gap-1 bg-[#12121c] border border-[#252538] px-1.5 py-0.5 rounded-[6px] text-[10px]"
+                              title={`${c.champ}: ${c.games}판 ${c.wins}승 ${c.losses}패 (${c.winrate.toFixed(0)}%)`}
                             >
-                              {p.player}
-                            </span>
-                          </span>
-                          {!isWooriming(p.player) && (
-                            <span className="text-[#8b5cf6] text-[11px] font-semibold">
-                              {(getPlayerSynergyRate(WOORIMING, p.player, stats.pairWinrates) * 100).toFixed(0)}
-                              %
-                            </span>
-                          )}
+                              <ChampionIcon name={c.champ} size={13} />
+                              <span className="font-semibold text-white truncate max-w-[50px]">{c.champ}</span>
+                              <span className="text-[#8a8aa0] text-[9px]">{c.games}판</span>
+                              <span
+                                className={`text-[9px] font-bold ${
+                                  c.winrate >= 50 ? 'text-[#38bdf8]' : 'text-[#f87171]'
+                                }`}
+                              >
+                                ({c.winrate.toFixed(0)}%)
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-3 text-[11px] text-[#8a8aa0] space-y-1 border-t border-[#1e1e2a] pt-2">
-                      <div className="text-[10px] text-[#6a6a80] font-semibold mb-1">우리밍_과의 판수 & 승률</div>
-                      {analysisResult.breakdown.map((b) => (
-                        <div key={b.name} className="flex justify-between text-[11px]">
-                          <span>
-                            {b.name} ({b.line})
-                          </span>
-                          <span className="text-[#c0c0d0]">
-                            {b.winrate.toFixed(0)}% ({b.games}판)
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Team B Roster Card */}
-                  <div className="bg-[rgba(59,130,246,0.06)] border border-[rgba(59,130,246,0.25)] rounded-[14px] p-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="text-[13px] font-bold text-[#3b82f6]">
-                        {analysisResult.mode === 'optimal'
-                          ? '최적 🔵 Blue팀 (상대팀)'
-                          : `🔵 Blue팀 ${analysisResult.wTeam === 'Blue' ? '(우리밍_팀)' : ''}`}
-                      </div>
-                      <div className="text-[11px] bg-[#3b82f6] text-white px-2 py-0.5 rounded-full font-bold">
-                        {(100 - analysisResult.expected).toFixed(1)}% 예상 승률
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      {analysisResult.teamB.map((p) => (
-                        <div
-                          key={`RB-${p.line}-${p.player}`}
-                          className="flex justify-between items-center text-[12px] bg-[#12121a] rounded-[8px] px-2.5 py-1.5 border border-[#1e1e2a]"
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="text-[10px] text-[#6a6a80] w-[30px] font-bold">
-                              {p.line}
-                            </span>
-                            <span className="text-white">{p.player}</span>
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {analysisResult.mode === 'optimal' && (
-                      <div className="mt-3 text-[10px] text-[#6a6a80] leading-relaxed">
-                        * 라인 배치는 각 플레이어의 주 포지션(과거 경기 데이터 빈도)을 반영하여 자동 분배되었습니다.
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

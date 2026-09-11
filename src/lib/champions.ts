@@ -231,6 +231,48 @@ export const CHAMPION_DDRAGON_MAP: Record<string, string> = {
 
 export const DDRAGON_VERSION = '16.18.1';
 
+// Korean Chosung (Initial Consonants) for LoL Champion Search (e.g. 'ㅇㄴㄹ' -> '유나라', 'ㅁ' -> '멜')
+const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+export function getChosung(text: string): string {
+  let res = '';
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i) - 44032;
+    if (code >= 0 && code <= 11171) {
+      res += CHOSUNG_LIST[Math.floor(code / 588)];
+    } else {
+      res += text.charAt(i).toLowerCase();
+    }
+  }
+  return res;
+}
+
+export function searchChampions(query: string, candidateList?: string[]): string[] {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return [];
+  const list = candidateList || Object.keys(CHAMPION_DDRAGON_MAP);
+  const qChosung = getChosung(q);
+
+  return Array.from(new Set(list)).filter((name) => {
+    const nLower = name.toLowerCase();
+    if (nLower.includes(q)) return true;
+    const nChosung = getChosung(name);
+    if (nChosung.includes(qChosung)) return true;
+    return false;
+  });
+}
+
+// SOOP TV Popular LoL CK Streamers Database
+export const SOOP_POPULAR_STREAMERS: string[] = [
+  '우리밍_', '김민교', '이상호', '김봉준', '임선비', '다단', '오아', '토마토', '박사장',
+  '남봉', '유소나', '수피', '강만식', '저라뎃', '준밧드', '뜨뜨뜨뜨', '단아냥', '임아니',
+  '앵지', '서리', '하티', '연두', '유혜디', '다샤', '모꿀', '파이', '안녕수야', '슬돌이',
+  '혜밍', '다누리', '김레인', '꿀탱탱', '나라카일', '린다랑', '데스티니', '막눈', '미키',
+  '스맵', '쿠로', '피글렛', '상윤', '나는상윤', '눈꽃', '강소연', '푸린', '인섹', '러너',
+  '꽃빈', '백크', '제동빠', '스피릿', '롤선생', '이경민', '애교용', '효딤', '디임',
+  '박삐삐', '하랑', '쪼해웅', '트할', '갱승제로', '준바', '마린'
+];
+
 export function normalizeChampionName(champName?: string | null): string {
   if (!champName) return '';
   const trimmed = champName.trim();

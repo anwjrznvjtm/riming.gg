@@ -45,6 +45,20 @@ export function getWoorimingTeam(match: Match): 'Red' | 'Blue' {
   return 'Red';
 }
 
+// Strictly check whether Wooriming won the match (regardless of casing, Korean '레드'/'블루', etc.)
+export function isMatchWonByWooriming(match: Match): boolean {
+  if (!match) return false;
+  const wTeam = getWoorimingTeam(match); // 'Red' | 'Blue'
+  const win = (match.winning_team || '').trim().toLowerCase();
+
+  if (wTeam === 'Red') {
+    return win === 'red' || win === '레드' || win === 'team_a' || win === 'a' || win === '1';
+  } else if (wTeam === 'Blue') {
+    return win === 'blue' || win === '블루' || win === 'team_b' || win === 'b' || win === '2';
+  }
+  return false;
+}
+
 export function getWoorimingLine(match: Match): LineName | null {
   if (!match) return 'ADC';
   for (const teamKey of ['team_a', 'team_b'] as const) {
@@ -92,6 +106,94 @@ export function getCombinations<T>(arr: T[], k: number): T[][] {
   return results;
 }
 
+export interface OpponentMatchDetail {
+  matchId: string | number;
+  date: string;
+  ckName: string;
+  setNumber: number;
+  myLine: LineName;
+  myChamp: string;
+  myKda: string;
+  opponentChamp: string;
+  opponentKda: string;
+  won: boolean;
+  score: string;
+  winningTeam: string;
+}
+
+export interface OpponentStat {
+  name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  winrate: number;
+  primaryLine: LineName;
+  matches: OpponentMatchDetail[];
+}
+
+export function calculateOpponentStats(matches: Match[]): OpponentStat[] {
+  const map = new Map<string, OpponentStat>();
+
+  for (const m of matches) {
+    const wTeam = getWoorimingTeam(m);
+    const lineKey = getWoorimingLineKey(m);
+    const lineLabel = LINE_LABELS[lineKey];
+
+    const oppTeamRoster = wTeam === 'Red' ? m.team_b : m.team_a;
+    const oppTeamChamps = wTeam === 'Red' ? m.team_b_champs : m.team_a_champs;
+    const oppTeamKda = wTeam === 'Red' ? m.team_b_kda : m.team_a_kda;
+
+    const myTeamChamps = wTeam === 'Red' ? m.team_a_champs : m.team_b_champs;
+    const myTeamKda = wTeam === 'Red' ? m.team_a_kda : m.team_b_kda;
+
+    const oppName = (oppTeamRoster?.[lineKey] || '').trim();
+    if (!oppName || isWooriming(oppName)) continue;
+
+    const won = isMatchWonByWooriming(m);
+
+    if (!map.has(oppName)) {
+      map.set(oppName, {
+        name: oppName,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        winrate: 0,
+        primaryLine: lineLabel,
+        matches: [],
+      });
+    }
+
+    const stat = map.get(oppName)!;
+    stat.games += 1;
+    if (won) {
+      stat.wins += 1;
+    } else {
+      stat.losses += 1;
+    }
+    stat.winrate = (stat.wins / stat.games) * 100;
+    stat.matches.push({
+      matchId: m.id,
+      date: m.date,
+      ckName: m.ck_name,
+      setNumber: m.set_number || 1,
+      myLine: lineLabel,
+      myChamp: myTeamChamps?.[lineKey] || '',
+      myKda: myTeamKda?.[lineKey] || '',
+      opponentChamp: oppTeamChamps?.[lineKey] || '',
+      opponentKda: oppTeamKda?.[lineKey] || '',
+      won,
+      score: m.score,
+      winningTeam: m.winning_team,
+    });
+  }
+
+  // Sort by matches played DESC, then winrate DESC
+  return Array.from(map.values()).sort((a, b) => {
+    if (b.games !== a.games) return b.games - a.games;
+    return b.winrate - a.winrate;
+  });
+}
+
 export interface ComputedStats {
   latestMonth: string;
   overallWinrate: { total: number; wins: number; losses: number; winrate: number };
@@ -102,6 +204,7 @@ export interface ComputedStats {
   };
   monthlyStats: { month: string; games: number; wins: number; losses: number; winrate: number }[];
   recentTenMatches: { match: Match; won: boolean }[];
+  opponentStats: OpponentStat[];
   mostBannedChamps: { champ: string; cnt: number; rate: number }[];
   mostPickedChamps: ChampionStat[];
   partnerStats: {
@@ -123,8 +226,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
   function calcWl(list: Match[]) {
     let wins = 0;
     for (const m of list) {
-      const wTeam = getWoorimingTeam(m);
-      if (m.winning_team === wTeam) wins++;
+      if (isMatchWonByWooriming(m)) wins++;
     }
     const total = list.length;
     return { total, wins, losses: total - wins, winrate: total ? (wins / total) * 100 : 0 };
@@ -137,9 +239,8 @@ export function calculateStats(matches: Match[]): ComputedStats {
   let supGames = 0, supWins = 0;
 
   for (const m of matches) {
-    const wTeam = getWoorimingTeam(m);
     const line = getWoorimingLine(m);
-    const won = m.winning_team === wTeam;
+    const won = isMatchWonByWooriming(m);
     if (line === 'ADC') {
       adcGames++;
       if (won) adcWins++;
@@ -160,7 +261,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
     const month = m.date.slice(0, 7);
     if (!monthlyMap[month]) monthlyMap[month] = { games: 0, wins: 0 };
     monthlyMap[month].games++;
-    if (m.winning_team === getWoorimingTeam(m)) monthlyMap[month].wins++;
+    if (isMatchWonByWooriming(m)) monthlyMap[month].wins++;
   }
 
   const monthlyStats = Object.entries(monthlyMap)
@@ -173,14 +274,21 @@ export function calculateStats(matches: Match[]): ComputedStats {
       winrate: data.games ? (data.wins / data.games) * 100 : 0,
     }));
 
-  // Recent 10 matches (ordered from oldest to newest for the timeline display)
-  const sortedByDateAsc = [...matches].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
+  // Recent 10 matches (ordered from oldest to newest for timeline display)
+  const sortedByDateAsc = [...matches].sort((a, b) => {
+    const dDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dDiff !== 0) return dDiff;
+    const setA = Number(a.set_number) || 1;
+    const setB = Number(b.set_number) || 1;
+    return setA - setB;
+  });
   const recentTenMatches = sortedByDateAsc.slice(-10).map((m) => ({
     match: m,
-    won: m.winning_team === getWoorimingTeam(m),
+    won: isMatchWonByWooriming(m),
   }));
+
+  // Opponent Top Stats
+  const opponentStats = calculateOpponentStats(matches);
 
   // Most banned
   const banCounts: Record<string, number> = {};
@@ -222,7 +330,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
       pickMap[champ] = { picks: 0, wins: 0, losses: 0, kSum: 0, dSum: 0, aSum: 0, kdaCount: 0 };
     }
     pickMap[champ].picks++;
-    if (m.winning_team === wTeam) pickMap[champ].wins++;
+    if (isMatchWonByWooriming(m)) pickMap[champ].wins++;
     else pickMap[champ].losses++;
 
     if (!isKdaEmpty(kda)) {
@@ -366,6 +474,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
     roleStats,
     monthlyStats,
     recentTenMatches,
+    opponentStats,
     mostBannedChamps,
     mostPickedChamps,
     partnerStats,
