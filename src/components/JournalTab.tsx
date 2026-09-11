@@ -31,7 +31,6 @@ import {
   CheckCircle2,
   Sparkles,
   Trophy,
-  Download,
   Upload,
   FileJson,
   RotateCcw,
@@ -738,34 +737,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".json,application/json"
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            onClick={handleExportData}
-            title="기존 전적 데이터를 JSON 파일로 다운로드 백업합니다."
-            className="h-[36px] px-3.5 bg-[#181824] hover:bg-[#222234] border border-[#2a2a3e] text-[#c0c0d8] hover:text-white rounded-full text-[12px] font-semibold flex items-center gap-1.5 transition active:scale-95"
-          >
-            <Download size={14} className="text-[#a78bfa]" />
-            <span>데이터 내보내기</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleImportClick}
-            title="백업된 JSON 파일로부터 전적 데이터를 불러와 복원합니다."
-            className="h-[36px] px-3.5 bg-[#181824] hover:bg-[#222234] border border-[#2a2a3e] text-[#c0c0d8] hover:text-white rounded-full text-[12px] font-semibold flex items-center gap-1.5 transition active:scale-95"
-          >
-            <Upload size={14} className="text-[#38bdf8]" />
-            <span>데이터 불러오기</span>
-          </button>
-
           <button
             type="button"
             onClick={handleOpenAddModal}

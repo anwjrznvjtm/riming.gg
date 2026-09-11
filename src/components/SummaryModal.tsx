@@ -80,9 +80,12 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ stats, isOpen, onClo
               <span className="text-center">경기수</span>
               <span className="text-right">승률</span>
             </div>
-            {stats.monthlyStats
-              .filter((m) => m.month >= '2026-07')
-              .map((m) => (
+            {stats.monthlyStats.length === 0 ? (
+              <div className="text-[12px] text-[#6a6a80] text-center py-4 border-t border-[#1e1e2a]">
+                기록된 월별 경기 데이터가 없습니다.
+              </div>
+            ) : (
+              stats.monthlyStats.map((m) => (
                 <div
                   key={m.month}
                   className="grid grid-cols-3 text-[12px] px-3 py-2 border-t border-[#1e1e2a]"
@@ -93,7 +96,8 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ stats, isOpen, onClo
                     {m.winrate.toFixed(0)}%
                   </span>
                 </div>
-              ))}
+              ))
+            )}
           </div>
         </div>
       </div>

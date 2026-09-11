@@ -256,19 +256,36 @@ export const MainTab: React.FC<MainTabProps> = ({
     }, 100);
   };
 
-  // Best partners this month: 승이 패보다 많고(승률 50% 초과) 최소 1승 이상!
+  // Best partners: 이번달(최소 1승 이상, 승률순) 우선 매칭, 없으면 전체 시즌 데이터로 유연하게 Fallback
   const targetRole = stats.dominantMonthRole;
   const partnerRoleList = targetRole === 'ADC' ? ['TOP', 'JGL', 'MID', 'SUP'] : ['TOP', 'JGL', 'MID', 'ADC'];
   const bestPartners = partnerRoleList.map((line) => {
-    const rolePartners = (Object.values(stats.partnerStats.thisMonth[targetRole]) as PartnerStat[]).filter(
-      (p) => p.line === line && p.wins > 0 && p.wins > p.games - p.wins
+    const thisMonthPartners = (Object.values(stats.partnerStats?.thisMonth?.[targetRole] || {}) as PartnerStat[]).filter(
+      (p) => p.line === line && p.wins > 0
     );
-    rolePartners.sort(
+    thisMonthPartners.sort(
       (a, b) => b.wins / b.games - a.wins / a.games || b.wins - a.wins || b.games - a.games
     );
+
+    if (thisMonthPartners.length > 0) {
+      return {
+        line,
+        best: thisMonthPartners[0],
+        isAllTime: false,
+      };
+    }
+
+    const overallPartners = (Object.values(stats.partnerStats?.overall?.[targetRole] || {}) as PartnerStat[]).filter(
+      (p) => p.line === line && p.wins > 0
+    );
+    overallPartners.sort(
+      (a, b) => b.wins / b.games - a.wins / a.games || b.wins - a.wins || b.games - a.games
+    );
+
     return {
       line,
-      best: rolePartners[0] || null,
+      best: overallPartners[0] || null,
+      isAllTime: true,
     };
   });
 
@@ -279,8 +296,8 @@ export const MainTab: React.FC<MainTabProps> = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-[fadeIn_0.2s] items-start">
-      {/* 좌측 사이드바: 프로필 및 승률 추이 (고정 사이드바) */}
-      <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6 lg:sticky lg:top-6 self-start order-2 lg:order-1">
+      {/* 좌측 사이드바: 프로필 및 승률 추이 (고정 사이드바, 모바일에서는 상단에 자연스럽게 노출) */}
+      <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6 lg:sticky lg:top-6 self-start">
         {/* 1. 동그란 '우' 승률 카드 */}
         <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 md:p-8 flex flex-col items-center justify-between">
           <div
@@ -359,44 +376,55 @@ export const MainTab: React.FC<MainTabProps> = ({
 
             {/* Monthly Bar chart */}
             <div>
-              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold">월별 승률</div>
-              <div className="flex items-end gap-2 h-24 bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
-                {stats.monthlyStats
-                  .filter((m) => m.month >= '2026-07')
-                  .reverse()
-                  .map((m) => {
-                    const rate = m.winrate;
-                    const barColor = rate >= 60 ? '#8b5cf6' : rate >= 50 ? '#6366f1' : '#4b5563';
-                    const barHeight = Math.max(6, (rate / 100) * 58);
-                    return (
-                      <div
-                        key={m.month}
-                        className="flex-1 flex flex-col items-center justify-end h-full"
-                      >
-                        <div className="text-[9px] font-bold text-[#c0c0d0] mb-0.5">
-                          {rate.toFixed(0)}%
-                        </div>
+              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex items-center justify-between">
+                <span>월별 승률</span>
+                {stats.monthlyStats.length > 0 && (
+                  <span className="text-[10px] text-[#8a8aa0]">최근 {Math.min(6, stats.monthlyStats.length)}개월</span>
+                )}
+              </div>
+              <div className="flex items-end gap-1.5 sm:gap-2 h-24 bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2 sm:p-2.5 overflow-x-auto min-w-0">
+                {stats.monthlyStats.length === 0 ? (
+                  <div className="text-[11px] text-[#5a5a6a] py-6 text-center w-full">
+                    월별 경기 데이터가 없습니다.
+                  </div>
+                ) : (
+                  stats.monthlyStats
+                    .slice(0, 6)
+                    .reverse()
+                    .map((m) => {
+                      const rate = m.winrate;
+                      const barColor = rate >= 60 ? '#8b5cf6' : rate >= 50 ? '#6366f1' : '#4b5563';
+                      const barHeight = Math.max(6, (rate / 100) * 56);
+                      return (
                         <div
-                          className="w-full rounded-t-[4px] transition-all"
-                          style={{ height: `${barHeight}px`, background: barColor, minHeight: '6px' }}
-                          title={`${m.month} ${rate.toFixed(1)}% (${m.wins}승 ${m.losses}패)`}
-                        />
-                        <div className="text-[9px] text-[#6a6a80] mt-1 whitespace-nowrap">
-                          {m.month.slice(5)}월
+                          key={m.month}
+                          className="flex-1 min-w-[28px] flex flex-col items-center justify-end h-full"
+                        >
+                          <div className="text-[9px] font-bold text-[#c0c0d0] mb-0.5 whitespace-nowrap">
+                            {rate.toFixed(0)}%
+                          </div>
+                          <div
+                            className="w-full rounded-t-[4px] transition-all"
+                            style={{ height: `${barHeight}px`, background: barColor, minHeight: '6px' }}
+                            title={`${m.month} ${rate.toFixed(1)}% (${m.wins}승 ${m.losses}패)`}
+                          />
+                          <div className="text-[9px] text-[#6a6a80] mt-1 whitespace-nowrap">
+                            {m.month.slice(5)}월
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                )}
               </div>
             </div>
 
             {/* Recent 10 games streak with Blue (우리밍_ 승) / Red (우리밍_ 패) */}
             <div>
-              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex items-center justify-between">
+              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex flex-wrap items-center justify-between gap-1">
                 <span>최근 10경기 흐름</span>
-                <span className="text-[9px] text-[#8a8aa0]">승(Blue) / 패(Red) • 우리밍_ 승패 기준</span>
+                <span className="text-[9px] text-[#8a8aa0]">승(Blue) / 패(Red) • 우리밍_ 기준</span>
               </div>
-              <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+              <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2 sm:p-2.5">
                 {/* Direction labels: 왼쪽 [10경기 전], 오른쪽 [최신 경기] */}
                 <div className="flex items-center justify-between text-[10px] mb-2 px-1 font-medium">
                   <span className="flex items-center gap-1 text-[#8a8aa0] bg-[#1e1e2a] px-2 py-0.5 rounded">
@@ -406,7 +434,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                     [최신 경기]
                   </span>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1 sm:gap-1.5 overflow-x-auto pb-0.5 min-w-0">
                   {stats.recentTenMatches.length === 0 ? (
                     <div className="text-[11px] text-[#5a5a6a] py-2 text-center w-full">경기 데이터가 없습니다.</div>
                   ) : (
@@ -415,7 +443,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                       return (
                         <div
                           key={match.id}
-                          className={`flex-1 h-[34px] rounded-[6px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative ${
+                          className={`flex-1 min-w-[22px] sm:min-w-[26px] h-[34px] rounded-[6px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative shrink-0 sm:shrink ${
                             won
                               ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
                               : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
@@ -424,7 +452,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                         >
                           <span className="text-[11px] leading-none">{won ? '승' : '패'}</span>
                           {isLatest && (
-                            <span className="text-[7px] text-[#c4b5fd] font-bold leading-none mt-0.5">
+                            <span className="text-[7px] text-[#c4b5fd] font-bold leading-none mt-0.5 whitespace-nowrap">
                               최신
                             </span>
                           )}
@@ -440,7 +468,7 @@ export const MainTab: React.FC<MainTabProps> = ({
       </div>
 
       {/* 우측 메인 영역: 라인별 팀 입력(10인 명단) 최상단 + 바로 아래 이번달 라인별 Best 파트너 */}
-      <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
+      <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
         {/* 1. 라인별 팀 입력(10인 명단) & CK 밸런서 영역 (최상단) */}
         <div className="space-y-4">
           {/* Banner */}
@@ -455,8 +483,8 @@ export const MainTab: React.FC<MainTabProps> = ({
           </div>
 
           {/* Input Card */}
-          <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 md:p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-4 sm:p-5 md:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4">
               <h2 className="text-[16px] font-bold text-white flex items-center gap-2">
                 <span>라인별 팀 입력</span>
                 <span className="text-[11px] font-normal text-[#8a8aa0]">(10인 명단)</span>
@@ -489,7 +517,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                 <div className="space-y-2">
                   {LINE_KEYS.map((k) => (
                     <div key={`A-${k}`} className="flex items-center gap-2">
-                      <span className="w-[36px] text-[11px] font-bold text-[#8a8aa0] tracking-widest">
+                      <span className="w-[36px] shrink-0 text-[11px] font-bold text-[#8a8aa0] tracking-widest">
                         {LINE_LABELS[k]}
                       </span>
                       <input
@@ -498,7 +526,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                         onChange={(e) => setTeamA((prev) => ({ ...prev, [k]: e.target.value }))}
                         placeholder="스트리머 이름"
                         list="players-datalist"
-                        className="flex-1 h-[34px] bg-[#12121a] border border-[rgba(239,68,68,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#ef4444]/60 transition"
+                        className="flex-1 min-w-0 h-[34px] bg-[#12121a] border border-[rgba(239,68,68,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#ef4444]/60 transition"
                       />
                     </div>
                   ))}
@@ -513,7 +541,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                 <div className="space-y-2">
                   {LINE_KEYS.map((k) => (
                     <div key={`B-${k}`} className="flex items-center gap-2">
-                      <span className="w-[36px] text-[11px] font-bold text-[#8a8aa0] tracking-widest">
+                      <span className="w-[36px] shrink-0 text-[11px] font-bold text-[#8a8aa0] tracking-widest">
                         {LINE_LABELS[k]}
                       </span>
                       <input
@@ -522,7 +550,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                         onChange={(e) => setTeamB((prev) => ({ ...prev, [k]: e.target.value }))}
                         placeholder="스트리머 이름"
                         list="players-datalist"
-                        className="flex-1 h-[34px] bg-[#12121a] border border-[rgba(59,130,246,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#3b82f6]/60 transition"
+                        className="flex-1 min-w-0 h-[34px] bg-[#12121a] border border-[rgba(59,130,246,0.25)] rounded-full px-3 text-[12px] placeholder:text-[#4a4a5a] focus:outline-none focus:border-[#3b82f6]/60 transition"
                       />
                     </div>
                   ))}
@@ -536,18 +564,18 @@ export const MainTab: React.FC<MainTabProps> = ({
               </div>
             )}
 
-            <div className="mt-4 flex flex-wrap gap-2.5">
+            <div className="mt-4 flex flex-col sm:flex-row flex-wrap gap-2.5">
               <button
                 type="button"
                 onClick={handleAnalyzeCurrent}
-                className="h-[36px] px-4 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[12px] font-semibold text-[#c0c0d0] transition"
+                className="w-full sm:w-auto h-[36px] px-4 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[12px] font-semibold text-[#c0c0d0] transition text-center justify-center flex items-center"
               >
                 현재 팀 시너지 분석
               </button>
               <button
                 type="button"
                 onClick={handleOptimizeTeams}
-                className="h-[36px] px-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-full text-[12px] font-bold shadow-[0_0_15px_rgba(139,92,246,0.3)] transition"
+                className="w-full sm:w-auto h-[36px] px-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-full text-[12px] font-bold shadow-[0_0_15px_rgba(139,92,246,0.3)] transition text-center justify-center flex items-center"
               >
                 승률 기반 최적 팀으로 재배치
               </button>
@@ -697,17 +725,17 @@ export const MainTab: React.FC<MainTabProps> = ({
         {/* 2. 이번달 라인별 Best 파트너 (세로로 바로 이어짐) */}
         <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 md:p-6 flex flex-col justify-between">
           <div>
-            <div className="flex justify-between items-center mb-1">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
               <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
                 <span>🤝</span>
-                <span>이번달 라인별 Best 파트너</span>
+                <span>라인별 Best 파트너</span>
               </h2>
               <span className="text-[11px] text-[#a78bfa] font-medium bg-[#8b5cf6]/10 px-2.5 py-0.5 rounded-full">
                 {stats.dominantMonthRole} 기준
               </span>
             </div>
             <div className="text-[11px] text-[#6a6a80] mb-3">
-              {stats.latestMonth} 경기 기준 • 함께 이긴 승률이 가장 높은 파트너
+              {stats.latestMonth} (또는 전체) 경기 기준 • 함께 이긴 승률이 가장 높은 파트너
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -724,6 +752,11 @@ export const MainTab: React.FC<MainTabProps> = ({
                     <div>
                       <div className="flex justify-between items-center text-[10px] tracking-wider text-[#8a8aa0] font-semibold">
                         <span>{item.line} 라인 Best</span>
+                        {item.best && (
+                          <span className="text-[9px] font-normal text-[#a78bfa] bg-[#8b5cf6]/10 px-1.5 py-0.5 rounded">
+                            {item.isAllTime ? '전체 시즌' : '이번달'}
+                          </span>
+                        )}
                       </div>
                       {item.best ? (
                         <>
@@ -767,10 +800,10 @@ export const MainTab: React.FC<MainTabProps> = ({
                               title={`${c.champ}: ${c.games}판 ${c.wins}승 ${c.losses}패 (${c.winrate.toFixed(0)}%)`}
                             >
                               <ChampionIcon name={c.champ} size={13} />
-                              <span className="font-semibold text-white truncate max-w-[50px]">{c.champ}</span>
-                              <span className="text-[#8a8aa0] text-[9px]">{c.games}판</span>
+                              <span className="font-semibold text-white truncate max-w-[65px] sm:max-w-none">{c.champ}</span>
+                              <span className="text-[#8a8aa0] text-[9px] shrink-0">{c.games}판</span>
                               <span
-                                className={`text-[9px] font-bold ${
+                                className={`text-[9px] font-bold shrink-0 ${
                                   c.winrate >= 50 ? 'text-[#38bdf8]' : 'text-[#f87171]'
                                 }`}
                               >

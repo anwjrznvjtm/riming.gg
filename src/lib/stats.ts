@@ -377,7 +377,7 @@ export function calculateStats(matches: Match[]): ComputedStats {
       if (!wKey) continue;
       const wLine = LINE_LABELS[wKey];
       if (wLine !== 'ADC' && wLine !== 'SUP') continue;
-      const won = m.winning_team === wTeam;
+      const won = isMatchWonByWooriming(m);
 
       for (const k of LINE_KEYS) {
         if (k === wKey) continue;
