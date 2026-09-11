@@ -34,6 +34,8 @@ export interface Match {
   winning_team: WinningTeam;
   match_format: MatchFormat;
   set_number: number;
+  created_at?: string; // ISO 8601 string for DB/REST synchronization
+  updated_at?: string; // ISO 8601 string for DB/REST synchronization
 }
 
 export interface ChampionStat {

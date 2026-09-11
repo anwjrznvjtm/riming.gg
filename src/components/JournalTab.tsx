@@ -5,6 +5,11 @@ import { ChampionIcon } from './ChampionIcon';
 import { parseKdaString, normalizeChampionName } from '../lib/champions';
 import { PASSCODE } from '../data/initialMatches';
 import {
+  serializeMatchesForExport,
+  parseMatchPayload,
+  SCHEMA_VERSION,
+} from '../lib/matchSchema';
+import {
   Plus,
   Search,
   Filter,
@@ -94,6 +99,9 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   const [importCandidate, setImportCandidate] = useState<{
     filename: string;
     matches: Match[];
+    format?: string;
+    schemaVersion?: string;
+    warnings?: string[];
   } | null>(null);
   const [importMode, setImportMode] = useState<'replace' | 'merge'>('replace');
 
@@ -273,14 +281,15 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     setDeleteTargetId(null);
   };
 
-  // Data Export Handler
+  // Data Export Handler (standardized schema payload for REST API / Supabase / Backup)
   const handleExportData = () => {
     if (matches.length === 0) {
       onToast('내보낼 경기 데이터가 없습니다.');
       return;
     }
     try {
-      const dataStr = JSON.stringify(matches, null, 2);
+      const exportPayload = serializeMatchesForExport(matches);
+      const dataStr = JSON.stringify(exportPayload, null, 2);
       const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -291,14 +300,14 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      onToast(`전적 데이터 파일(.json) 저장 완료 (총 ${matches.length}경기)`);
+      onToast(`표준 스키마(v${SCHEMA_VERSION}) 전적 데이터 저장 완료 (총 ${matches.length}경기)`);
     } catch (e) {
       console.error('Export error', e);
       onToast('데이터 내보내기 실패');
     }
   };
 
-  // Data Import Handlers
+  // Data Import Handlers (supports standard export JSON, raw array, REST API DTOs, and Supabase rows)
   const handleImportClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -319,34 +328,23 @@ export const JournalTab: React.FC<JournalTabProps> = ({
           return;
         }
         const parsed = JSON.parse(text);
-        const list: Match[] = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray(parsed?.matches)
-          ? parsed.matches
-          : null;
-
-        if (!list || list.length === 0) {
-          onToast('유효한 경기 데이터(.json)를 찾을 수 없습니다.');
-          return;
-        }
-
-        // Validate basic structure
-        const validList = list.filter(
-          (item) => item && typeof item === 'object' && item.team_a && item.team_b
-        );
-        if (validList.length === 0) {
-          onToast('올바른 CK 일지 전적 형식의 데이터가 아닙니다.');
-          return;
-        }
+        const { matches: parsedMatches, format, schemaVersion, count, warnings } = parseMatchPayload(parsed);
 
         setImportCandidate({
           filename: file.name,
-          matches: validList,
+          matches: parsedMatches,
+          format,
+          schemaVersion,
+          warnings,
         });
         setImportMode('replace');
-      } catch (err) {
+
+        if (warnings.length > 0) {
+          console.warn('[Schema Parser Warnings]', warnings);
+        }
+      } catch (err: any) {
         console.error('JSON parse error', err);
-        onToast('JSON 파일을 파싱하는 도중 오류가 발생했습니다.');
+        onToast(err?.message || 'JSON 데이터를 파싱하는 도중 오류가 발생했습니다.');
       }
     };
     reader.readAsText(file, 'UTF-8');
@@ -1395,6 +1393,12 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                 </span>
               </div>
               <div className="flex justify-between text-[#8a8aa0]">
+                <span>데이터 규격:</span>
+                <span className="text-[#38bdf8] font-semibold">
+                  {importCandidate.format || '표준 스키마'}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#8a8aa0]">
                 <span>불러올 경기 수:</span>
                 <span className="text-[#38bdf8] font-bold">
                   총 {importCandidate.matches.length}경기
@@ -1406,6 +1410,19 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   총 {matches.length}경기
                 </span>
               </div>
+              {importCandidate.warnings && importCandidate.warnings.length > 0 && (
+                <div className="pt-1 text-[11px] text-[#fbbf24] bg-[#fbbf24]/10 rounded-[6px] p-2 border border-[#fbbf24]/20">
+                  <div className="font-semibold mb-0.5">파싱 참고 사항:</div>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
+                    {importCandidate.warnings.slice(0, 3).map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                    {importCandidate.warnings.length > 3 && (
+                      <li>외 {importCandidate.warnings.length - 3}건</li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Mode selection */}

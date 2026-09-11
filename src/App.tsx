@@ -11,6 +11,7 @@ import {
 } from './data/initialMatches';
 import { calculateStats } from './lib/stats';
 import { normalizeChampionName } from './lib/champions';
+import { normalizeMatch } from './lib/matchSchema';
 import { Header } from './components/Header';
 import { MainTab } from './components/MainTab';
 import { SynergyTab } from './components/SynergyTab';
@@ -42,7 +43,7 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed;
+          return parsed.map((m) => normalizeMatch(m));
         }
       }
     } catch (e) {
@@ -425,14 +426,16 @@ export default function App() {
     return Array.from(set).filter(Boolean).sort();
   }, [matches]);
 
-  // Match mutations
+  // Match mutations with schema normalization
   const handleAddMatch = (newMatch: Match) => {
-    setMatches((prev) => [newMatch, ...prev]);
+    const normalized = normalizeMatch(newMatch);
+    setMatches((prev) => [normalized, ...prev]);
   };
 
   const handleUpdateMatch = (updatedMatch: Match) => {
+    const normalized = normalizeMatch(updatedMatch);
     setMatches((prev) =>
-      prev.map((m) => (String(m.id) === String(updatedMatch.id) ? updatedMatch : m))
+      prev.map((m) => (String(m.id) === String(normalized.id) ? normalized : m))
     );
   };
 
@@ -441,26 +444,7 @@ export default function App() {
   };
 
   const handleImportMatches = (importedList: Match[], mode: 'replace' | 'merge') => {
-    const cleanList = importedList.map((m, idx) => ({
-      ...m,
-      id: m.id || `m_imported_${Date.now()}_${idx}`,
-      team_a_champs: {
-        top: normalizeChampionName(m.team_a_champs?.top),
-        jgl: normalizeChampionName(m.team_a_champs?.jgl),
-        mid: normalizeChampionName(m.team_a_champs?.mid),
-        adc: normalizeChampionName(m.team_a_champs?.adc),
-        sup: normalizeChampionName(m.team_a_champs?.sup),
-      },
-      team_b_champs: {
-        top: normalizeChampionName(m.team_b_champs?.top),
-        jgl: normalizeChampionName(m.team_b_champs?.jgl),
-        mid: normalizeChampionName(m.team_b_champs?.mid),
-        adc: normalizeChampionName(m.team_b_champs?.adc),
-        sup: normalizeChampionName(m.team_b_champs?.sup),
-      },
-      ban_a: (m.ban_a || []).map((b) => normalizeChampionName(b)),
-      ban_b: (m.ban_b || []).map((b) => normalizeChampionName(b)),
-    }));
+    const cleanList = importedList.map((m) => normalizeMatch(m));
 
     if (mode === 'replace') {
       setMatches(cleanList);
