@@ -278,68 +278,164 @@ export const MainTab: React.FC<MainTabProps> = ({
   const circumference = 2 * Math.PI * 62;
 
   return (
-    <div className="space-y-6 animate-[fadeIn_0.2s]">
-      {/* 1. 상단: 우리밍_ 프로필 & 승률 도넛 + CK 밸런서 (10인 팀 입력 & 시너지 분석) */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left: Donut Card */}
-        <div className="lg:w-[320px] w-full shrink-0">
-          <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 md:p-8 flex flex-col items-center h-full justify-between">
-            <div className="flex flex-col items-center">
-              <div
-                onClick={onOpenSummaryModal}
-                title="클릭하면 전체 전적 상세 보기"
-                className="relative w-[140px] h-[140px] flex items-center justify-center cursor-pointer hover:scale-[1.04] transition-transform group"
-              >
-                <svg width="140" height="140" className="absolute inset-0 -rotate-90">
-                  <circle cx="70" cy="70" r="62" stroke="#1e1e2a" strokeWidth="8" fill="none" />
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r="62"
-                    stroke="#8b5cf6"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={circumference - (circumference * displayWinrate) / 100}
-                    style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-                  />
-                </svg>
-                <div className="w-[112px] h-[112px] rounded-full bg-[#08080c] border border-[#1e1e2a] group-hover:border-[#8b5cf6]/40 flex flex-col items-center justify-center transition-colors">
-                  <div className="text-[28px] font-black tracking-tight text-white">우</div>
-                  <div className="text-[20px] font-bold text-[#8b5cf6]">
-                    {displayWinrate.toFixed(0)}%
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 text-center">
-                <div className="text-[18px] font-bold tracking-tight text-white">우리밍_</div>
-                <div className="mt-2 inline-flex items-center gap-2 bg-[#1e1e2a] border border-[#2a2a3a] rounded-full px-3 py-1 text-[11px] text-[#a0a0b8]">
-                  <span>이번달 ({stats.latestMonth})</span>
-                  <span>•</span>
-                  <span className="font-semibold text-[#a78bfa]">{stats.dominantMonthRole}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 text-[13px] text-[#c0c0d0] font-medium">
-                {stats.thisMonthWinrate.wins}승 {stats.thisMonthWinrate.losses}패 / 총{' '}
-                {stats.thisMonthWinrate.total}판
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-[fadeIn_0.2s]">
+      {/* 좌측 컬럼: 동그란 승률 원형 카드 + 바로 아래 승률 추이 영역 */}
+      <div className="lg:col-span-5 flex flex-col gap-6">
+        {/* 1. 동그란 '우' 승률 카드 */}
+        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 md:p-8 flex flex-col items-center">
+          <div
+            onClick={onOpenSummaryModal}
+            title="클릭하면 전체 전적 상세 보기"
+            className="relative w-[140px] h-[140px] flex items-center justify-center cursor-pointer hover:scale-[1.04] transition-transform group"
+          >
+            <svg width="140" height="140" className="absolute inset-0 -rotate-90">
+              <circle cx="70" cy="70" r="62" stroke="#1e1e2a" strokeWidth="8" fill="none" />
+              <circle
+                cx="70"
+                cy="70"
+                r="62"
+                stroke="#8b5cf6"
+                strokeWidth="8"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference - (circumference * displayWinrate) / 100}
+                style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+              />
+            </svg>
+            <div className="w-[112px] h-[112px] rounded-full bg-[#08080c] border border-[#1e1e2a] group-hover:border-[#8b5cf6]/40 flex flex-col items-center justify-center transition-colors">
+              <div className="text-[28px] font-black tracking-tight text-white">우</div>
+              <div className="text-[20px] font-bold text-[#8b5cf6]">
+                {displayWinrate.toFixed(0)}%
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={onOpenSummaryModal}
-              className="mt-5 w-full py-2 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] text-[#c0c0d0] hover:text-white rounded-full text-[12px] font-medium transition"
-            >
-              전체 전적 상세 보기
-            </button>
           </div>
+
+          <div className="mt-5 text-center">
+            <div className="text-[18px] font-bold tracking-tight text-white">우리밍_</div>
+            <div className="mt-2 inline-flex items-center gap-2 bg-[#1e1e2a] border border-[#2a2a3a] rounded-full px-3 py-1 text-[11px] text-[#a0a0b8]">
+              <span>이번달 ({stats.latestMonth})</span>
+              <span>•</span>
+              <span className="font-semibold text-[#a78bfa]">{stats.dominantMonthRole}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 text-[13px] text-[#c0c0d0] font-medium">
+            {stats.thisMonthWinrate.wins}승 {stats.thisMonthWinrate.losses}패 / 총{' '}
+            {stats.thisMonthWinrate.total}판
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenSummaryModal}
+            className="mt-5 w-full py-2 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] text-[#c0c0d0] hover:text-white rounded-full text-[12px] font-medium transition"
+          >
+            전체 전적 상세 보기
+          </button>
         </div>
 
-        {/* Right: CK 밸런서 & Line-by-line Roster Input & Optimizer */}
-        <div className="flex-1 space-y-4">
+        {/* 2. 승률 추이 & 최근 경기 흐름 (동그란 원 바로 아래 배치) */}
+        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col justify-between">
+          <div>
+            <div className="text-[14px] font-bold mb-3 flex items-center justify-between text-white">
+              <span className="flex items-center gap-2">📊 승률 추이</span>
+              <span className="text-[11px] font-normal text-[#8a8aa0]">2026 시즌</span>
+            </div>
+
+            <div className="flex justify-between items-center bg-[#08080c] border border-[#1e1e2a] rounded-[10px] px-3.5 py-2 mb-3.5">
+              <span className="text-[12px] text-[#8a8aa0]">전체 승률</span>
+              <span className="text-[14px] font-bold text-[#8b5cf6]">
+                {stats.overallWinrate.winrate.toFixed(0)}% ({stats.overallWinrate.wins}승{' '}
+                {stats.overallWinrate.losses}패)
+              </span>
+            </div>
+
+            {/* Monthly Bar chart */}
+            <div className="mb-4">
+              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold">월별 승률</div>
+              <div className="flex items-end gap-2 h-20 bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+                {stats.monthlyStats
+                  .filter((m) => m.month >= '2026-07')
+                  .reverse()
+                  .map((m) => {
+                    const rate = m.winrate;
+                    const barColor = rate >= 60 ? '#8b5cf6' : rate >= 50 ? '#6366f1' : '#4b5563';
+                    const barHeight = Math.max(6, (rate / 100) * 50);
+                    return (
+                      <div
+                        key={m.month}
+                        className="flex-1 flex flex-col items-center justify-end h-full"
+                      >
+                        <div className="text-[9px] font-bold text-[#c0c0d0] mb-0.5">
+                          {rate.toFixed(0)}%
+                        </div>
+                        <div
+                          className="w-full rounded-t-[4px] transition-all"
+                          style={{ height: `${barHeight}px`, background: barColor, minHeight: '6px' }}
+                          title={`${m.month} ${rate.toFixed(1)}% (${m.wins}승 ${m.losses}패)`}
+                        />
+                        <div className="text-[9px] text-[#6a6a80] mt-1 whitespace-nowrap">
+                          {m.month.slice(5)}월
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+
+          {/* Recent 10 games streak with Blue (우리밍_ 승) / Red (우리밍_ 패) */}
+          <div className="mt-2">
+            <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex items-center justify-between">
+              <span>최근 10경기 흐름</span>
+              <span className="text-[9px] text-[#8a8aa0]">승(Blue) / 패(Red) • 우리밍_ 승패 기준</span>
+            </div>
+            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
+              {/* Direction labels: 왼쪽 [10경기 전], 오른쪽 [최신 경기] */}
+              <div className="flex items-center justify-between text-[10px] mb-2 px-1 font-medium">
+                <span className="flex items-center gap-1 text-[#8a8aa0] bg-[#1e1e2a] px-2 py-0.5 rounded">
+                  [10경기 전]
+                </span>
+                <span className="flex items-center gap-1 text-[#a78bfa] bg-[#8b5cf6]/15 border border-[#8b5cf6]/30 px-2 py-0.5 rounded font-bold">
+                  [최신 경기]
+                </span>
+              </div>
+              <div className="flex gap-1.5">
+                {stats.recentTenMatches.length === 0 ? (
+                  <div className="text-[11px] text-[#5a5a6a] py-2 text-center w-full">경기 데이터가 없습니다.</div>
+                ) : (
+                  stats.recentTenMatches.map(({ match, won }, idx) => {
+                    const isLatest = idx === stats.recentTenMatches.length - 1;
+                    return (
+                      <div
+                        key={match.id}
+                        className={`flex-1 h-[34px] rounded-[6px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative ${
+                          won
+                            ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
+                            : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
+                        } ${isLatest ? 'ring-1 ring-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.3)]' : ''}`}
+                        title={`${match.date} ${match.ck_name} - 우리밍_ ${won ? '승리' : '패배'} ${isLatest ? '(가장 최신 경기)' : ''}`}
+                      >
+                        <span className="text-[11px] leading-none">{won ? '승' : '패'}</span>
+                        {isLatest && (
+                          <span className="text-[7px] text-[#c4b5fd] font-bold leading-none mt-0.5">
+                            최신
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 우측 컬럼: 라인별 팀 입력 및 '이번달 라인별 Best 파트너' 배치 */}
+      <div className="lg:col-span-7 flex flex-col gap-6">
+        {/* 라인별 팀 입력 및 CK 밸런서 영역 */}
+        <div className="space-y-4">
           {/* Banner */}
           <div className="bg-gradient-to-r from-[#8b5cf6]/25 to-[#8b5cf6]/5 border border-[#8b5cf6]/40 rounded-[16px] p-4 flex items-start gap-3 shadow-[0_0_20px_rgba(139,92,246,0.15)]">
             <div className="text-[18px]">⚡</div>
@@ -590,108 +686,8 @@ export const MainTab: React.FC<MainTabProps> = ({
             )}
           </div>
         </div>
-      </div>
 
-      {/* 2. 중단: [승률 추이 & 최근 10경기 흐름] (좌) + [이번달 라인별 Best 파트너] (우) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Left: 승률 추이 & 최근 10경기 흐름 */}
-        <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col justify-between">
-          <div>
-            <div className="text-[14px] font-bold mb-3 flex items-center justify-between text-white">
-              <span className="flex items-center gap-2">📊 승률 추이</span>
-              <span className="text-[11px] font-normal text-[#8a8aa0]">2026 시즌</span>
-            </div>
-
-            <div className="flex justify-between items-center bg-[#08080c] border border-[#1e1e2a] rounded-[10px] px-3.5 py-2 mb-3.5">
-              <span className="text-[12px] text-[#8a8aa0]">전체 승률</span>
-              <span className="text-[14px] font-bold text-[#8b5cf6]">
-                {stats.overallWinrate.winrate.toFixed(0)}% ({stats.overallWinrate.wins}승{' '}
-                {stats.overallWinrate.losses}패)
-              </span>
-            </div>
-
-            {/* Monthly Bar chart */}
-            <div className="mb-4">
-              <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold">월별 승률</div>
-              <div className="flex items-end gap-2 h-20 bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
-                {stats.monthlyStats
-                  .filter((m) => m.month >= '2026-07')
-                  .reverse()
-                  .map((m) => {
-                    const rate = m.winrate;
-                    const barColor = rate >= 60 ? '#8b5cf6' : rate >= 50 ? '#6366f1' : '#4b5563';
-                    const barHeight = Math.max(6, (rate / 100) * 50);
-                    return (
-                      <div
-                        key={m.month}
-                        className="flex-1 flex flex-col items-center justify-end h-full"
-                      >
-                        <div className="text-[9px] font-bold text-[#c0c0d0] mb-0.5">
-                          {rate.toFixed(0)}%
-                        </div>
-                        <div
-                          className="w-full rounded-t-[4px] transition-all"
-                          style={{ height: `${barHeight}px`, background: barColor, minHeight: '6px' }}
-                          title={`${m.month} ${rate.toFixed(1)}% (${m.wins}승 ${m.losses}패)`}
-                        />
-                        <div className="text-[9px] text-[#6a6a80] mt-1 whitespace-nowrap">
-                          {m.month.slice(5)}월
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          </div>
-
-          {/* Recent 10 games streak with Blue (우리밍_ 승) / Red (우리밍_ 패) */}
-          <div className="mt-2">
-            <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex items-center justify-between">
-              <span>최근 10경기 흐름</span>
-              <span className="text-[9px] text-[#8a8aa0]">승(Blue) / 패(Red) • 우리밍_ 승패 기준</span>
-            </div>
-            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
-              {/* Direction labels: 왼쪽 [10경기 전], 오른쪽 [최신 경기] */}
-              <div className="flex items-center justify-between text-[10px] mb-2 px-1 font-medium">
-                <span className="flex items-center gap-1 text-[#8a8aa0] bg-[#1e1e2a] px-2 py-0.5 rounded">
-                  [10경기 전]
-                </span>
-                <span className="flex items-center gap-1 text-[#a78bfa] bg-[#8b5cf6]/15 border border-[#8b5cf6]/30 px-2 py-0.5 rounded font-bold">
-                  [최신 경기]
-                </span>
-              </div>
-              <div className="flex gap-1.5">
-                {stats.recentTenMatches.length === 0 ? (
-                  <div className="text-[11px] text-[#5a5a6a] py-2 text-center w-full">경기 데이터가 없습니다.</div>
-                ) : (
-                  stats.recentTenMatches.map(({ match, won }, idx) => {
-                    const isLatest = idx === stats.recentTenMatches.length - 1;
-                    return (
-                      <div
-                        key={match.id}
-                        className={`flex-1 h-[34px] rounded-[6px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative ${
-                          won
-                            ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
-                            : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
-                        } ${isLatest ? 'ring-1 ring-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.3)]' : ''}`}
-                        title={`${match.date} ${match.ck_name} - 우리밍_ ${won ? '승리' : '패배'} ${isLatest ? '(가장 최신 경기)' : ''}`}
-                      >
-                        <span className="text-[11px] leading-none">{won ? '승' : '패'}</span>
-                        {isLatest && (
-                          <span className="text-[7px] text-[#c4b5fd] font-bold leading-none mt-0.5">
-                            최신
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: 이번달 라인별 Best 파트너 */}
+        {/* 이번달 라인별 Best 파트너 */}
         <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col justify-between">
           <div>
             <div className="flex justify-between items-center mb-1">
