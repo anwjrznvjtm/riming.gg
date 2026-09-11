@@ -19,7 +19,9 @@ import { JournalTab } from './components/JournalTab';
 import { RollandTab } from './components/RollandTab';
 import { SummaryModal } from './components/SummaryModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import { DataBackupModal } from './components/DataBackupModal';
 import { BGM_PLAYLIST, BgmTrack, createBgmQueue } from './lib/bgm';
+import { Database } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -57,6 +59,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string>('');
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState<boolean>(false);
 
   // BGM audio state with Fisher-Yates shuffled queue
   const [isBgmPlaying, setIsBgmPlaying] = useState<boolean>(false);
@@ -522,6 +525,53 @@ export default function App() {
     });
   };
 
+  // Direct import & automatic persistence to Cloudflare D1 DB (/api/matches)
+  const handleImportToD1 = async (importedList: Match[], mode: 'replace' | 'merge'): Promise<boolean> => {
+    const cleanList = importedList.map((m) => normalizeMatch(m));
+
+    if (mode === 'replace') {
+      setMatches(cleanList);
+    } else {
+      setMatches((prev) => {
+        const existingIds = new Set(prev.map((m) => String(m.id)));
+        const newOnes = cleanList.filter((m) => !existingIds.has(String(m.id)));
+        return [...newOnes, ...prev].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+      });
+    }
+
+    try {
+      const res = await fetch('/api/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, matches: cleanList }),
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('[D1 API] handleImportToD1 network error:', err);
+      return false;
+    }
+  };
+
+  // Refresh latest data directly from Cloudflare D1
+  const handleRefreshFromD1 = async () => {
+    try {
+      const res = await fetch('/api/matches');
+      if (res.ok) {
+        const data = await res.json();
+        const rawList = Array.isArray(data) ? data : data?.matches || [];
+        if (Array.isArray(rawList)) {
+          const normalized = rawList.map((m: any) => normalizeMatch(m));
+          setMatches(normalized);
+        }
+      }
+    } catch (err) {
+      console.warn('[D1 API] handleRefreshFromD1 error:', err);
+      throw err;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#08080c] text-[#e6e6ef] selection:bg-[#8b5cf6]/30 flex flex-col justify-between">
       {/* Background YouTube Host */}
@@ -561,6 +611,7 @@ export default function App() {
         isAdmin={isAdmin}
         onLoginClick={() => setIsAdminModalOpen(true)}
         onLogoutClick={handleAdminLogout}
+        onOpenBackupModal={() => setIsBackupModalOpen(true)}
         pairMap={stats.pairWinrates}
         onToast={showToast}
         isBgmPlaying={isBgmPlaying}
@@ -572,6 +623,26 @@ export default function App() {
         bgmVolume={bgmVolume}
         onChangeVolume={handleVolumeChange}
       />
+
+      {/* Quick Action & D1 Sync Banner */}
+      <div className="border-b border-[#14141e] bg-[#0c0c14]/90 backdrop-blur px-4 py-2">
+        <div className="max-w-[1100px] mx-auto flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <div className="flex items-center gap-2 text-[#8a8aa0]">
+            <span className="inline-block w-2 h-2 rounded-full bg-[#38bdf8] shadow-[0_0_6px_#38bdf8]" />
+            <span className="text-[#cbd5e1] font-medium">Cloudflare D1 DB 연동 중</span>
+            <span className="text-[#3e3e52]">•</span>
+            <span>총 <strong className="text-white font-bold">{matches.length}</strong>경기 관리 중</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsBackupModalOpen(true)}
+            className="px-3 py-1 rounded-full bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 border border-[#38bdf8]/40 text-[#38bdf8] font-semibold flex items-center gap-1.5 transition shadow-sm"
+          >
+            <Database size={12} />
+            <span>JSON 데이터 불러오기 / 백업</span>
+          </button>
+        </div>
+      </div>
 
       {/* Main Content Area */}
       <main className="max-w-[1100px] w-full mx-auto px-4 md:px-6 py-6 md:py-10 flex-1">
@@ -620,6 +691,15 @@ export default function App() {
         onClose={() => setIsAdminModalOpen(false)}
         onSuccess={handleAdminLoginSuccess}
         onToast={showToast}
+      />
+
+      <DataBackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        matches={matches}
+        onImportToD1={handleImportToD1}
+        onToast={showToast}
+        onRefreshFromD1={handleRefreshFromD1}
       />
 
       {/* Footer */}

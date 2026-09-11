@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Match } from '../types';
 import { getPlayerSynergyRate, isWooriming, WOORIMING } from '../lib/stats';
-import { Search, Volume2, VolumeX, Play, Pause, Lock, Unlock, SkipForward } from 'lucide-react';
+import { Search, Volume2, VolumeX, Play, Pause, Lock, Unlock, SkipForward, Database } from 'lucide-react';
 import { BgmTrack } from '../lib/bgm';
 
 interface HeaderProps {
@@ -12,6 +12,7 @@ interface HeaderProps {
   isAdmin: boolean;
   onLoginClick: () => void;
   onLogoutClick: () => void;
+  onOpenBackupModal?: () => void;
   pairMap: Map<string, { games: number; wins: number }>;
   onToast: (msg: string) => void;
   isBgmPlaying: boolean;
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   isAdmin,
   onLoginClick,
   onLogoutClick,
+  onOpenBackupModal,
   pairMap,
   onToast,
   isBgmPlaying,
@@ -270,6 +272,20 @@ export const Header: React.FC<HeaderProps> = ({
               title={`볼륨: ${bgmVolume}%`}
             />
           </div>
+
+          {/* JSON Backup & D1 Sync Button */}
+          {onOpenBackupModal && (
+            <button
+              type="button"
+              onClick={onOpenBackupModal}
+              className="h-[34px] px-3 rounded-full text-[11px] bg-[#12121a] border border-[#38bdf8]/35 text-[#38bdf8] hover:bg-[#38bdf8]/10 hover:border-[#38bdf8]/60 flex items-center gap-1.5 transition font-semibold shadow-sm"
+              title="JSON 데이터 불러오기 / 백업 (Cloudflare D1 DB 자동 동기화)"
+            >
+              <Database size={12} className="text-[#38bdf8]" />
+              <span className="hidden md:inline">JSON 불러오기/백업</span>
+              <span className="md:hidden">JSON/DB</span>
+            </button>
+          )}
 
           {/* Admin Mode Button */}
           {isAdmin ? (
