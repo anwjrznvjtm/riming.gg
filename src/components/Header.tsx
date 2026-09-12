@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Match } from '../types';
 import { getPlayerSynergyRate, isWooriming, WOORIMING } from '../lib/stats';
-import { Search, Volume2, VolumeX, Play, Pause, Lock, Unlock, SkipForward, Cloud, RefreshCw } from 'lucide-react';
+import { Search, Volume2, VolumeX, Play, Pause, Lock, Unlock, SkipForward } from 'lucide-react';
 import { BgmTrack } from '../lib/bgm';
 
 interface HeaderProps {
@@ -22,8 +22,6 @@ interface HeaderProps {
   onToggleMute: () => void;
   bgmVolume: number;
   onChangeVolume: (vol: number) => void;
-  isSyncing?: boolean;
-  onRefresh?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,8 +42,6 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleMute,
   bgmVolume,
   onChangeVolume,
-  isSyncing = false,
-  onRefresh,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -274,25 +270,6 @@ export const Header: React.FC<HeaderProps> = ({
               title={`볼륨: ${bgmVolume}%`}
             />
           </div>
-
-          {/* Cloud Sync Status & Refresh Button */}
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              className={`h-[34px] px-2.5 sm:px-3 rounded-full text-[11px] border transition flex items-center gap-1.5 ${
-                isSyncing
-                  ? 'bg-[#38bdf8]/15 border-[#38bdf8] text-[#38bdf8]'
-                  : 'bg-[#12121a] border-[#1e1e2a] hover:border-[#38bdf8]/50 text-[#8a8aa0] hover:text-[#38bdf8]'
-              }`}
-              title="Cloudflare Worker 실시간 동기화"
-            >
-              <RefreshCw size={12} className={isSyncing ? 'animate-spin text-[#38bdf8]' : ''} />
-              <span className="hidden sm:inline font-medium">
-                {isSyncing ? '동기화 중...' : '클라우드'}
-              </span>
-            </button>
-          )}
 
           {/* Admin Mode Button */}
           {isAdmin ? (

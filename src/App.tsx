@@ -19,6 +19,7 @@ import {
   deleteMatchOnApi,
 } from './lib/matchApi';
 import { Header } from './components/Header';
+import { Footer } from './components/Footer';
 import { MainTab } from './components/MainTab';
 import { SynergyTab } from './components/SynergyTab';
 import { JournalTab } from './components/JournalTab';
@@ -607,11 +608,6 @@ export default function App() {
         onToggleMute={toggleMute}
         bgmVolume={bgmVolume}
         onChangeVolume={handleVolumeChange}
-        isSyncing={syncStatus === 'syncing'}
-        onRefresh={() => {
-          showToast('Cloudflare 실시간 동기화 중... ☁️');
-          syncFromApi(false);
-        }}
       />
 
       {/* Main Content Area */}
@@ -663,16 +659,7 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="mt-12 border-t border-[#1e1e2a] py-8 text-center bg-[#08080c]">
-        <div className="max-w-[1100px] mx-auto px-4 text-[11px] text-[#5a5a6a] leading-relaxed space-y-1">
-          <div>
-            <span className="font-bold text-[#8a8aa0]">RIMING.GG</span> • CK 기록 전용 • Dark minimal
-          </div>
-          <div>
-            Data: {matches.length} matches • Red팀 vs Blue팀 • 우리밍_ ADC/SUP
-          </div>
-        </div>
-      </footer>
+      <Footer totalMatches={matches.length} />
     </div>
   );
 }
