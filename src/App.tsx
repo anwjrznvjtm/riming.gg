@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Match } from './types';
 import {
   PASSCODE,
@@ -12,6 +12,12 @@ import {
 import { calculateStats } from './lib/stats';
 import { normalizeChampionName } from './lib/champions';
 import { normalizeMatch } from './lib/matchSchema';
+import {
+  fetchAllMatchesFromApi,
+  createMatchOnApi,
+  updateMatchOnApi,
+  deleteMatchOnApi,
+} from './lib/matchApi';
 import { Header } from './components/Header';
 import { MainTab } from './components/MainTab';
 import { SynergyTab } from './components/SynergyTab';
@@ -57,6 +63,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string>('');
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
 
   // BGM audio state with Fisher-Yates shuffled queue
   const [isBgmPlaying, setIsBgmPlaying] = useState<boolean>(false);
@@ -129,31 +136,48 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  // Fetch initial matches from Cloudflare Pages D1 API (/api/matches) with LocalStorage fallback
-  useEffect(() => {
-    let isMounted = true;
-    async function syncFromApi() {
-      try {
-        const res = await fetch('/api/matches');
-        if (res.ok) {
-          const data = await res.json();
-          const rawList = Array.isArray(data) ? data : data?.matches || [];
-          if (Array.isArray(rawList) && rawList.length > 0 && isMounted) {
-            const normalized = rawList.map((m: any) => normalizeMatch(m));
-            setMatches(normalized);
-            console.log(`[D1 DB] Successfully loaded ${normalized.length} matches from /api/matches`);
-          }
-        }
-      } catch (err) {
-        // Fallback silently to LocalStorage if /api/matches is offline or not deployed yet
-        console.warn('[D1 DB] /api/matches sync skipped, using local cache:', err);
+  // Synchronize matches from Cloudflare Worker API with automatic fallback
+  const syncFromApi = useCallback(async (isSilent = false) => {
+    if (!isSilent) setSyncStatus('syncing');
+    try {
+      const { matches: remoteMatches, source } = await fetchAllMatchesFromApi();
+      if (Array.isArray(remoteMatches)) {
+        setMatches(remoteMatches);
+        setSyncStatus('synced');
+        console.log(`[Cloud Sync] Synchronized ${remoteMatches.length} matches from ${source}`);
       }
+    } catch (err) {
+      console.warn('[Cloud Sync] Failed to sync:', err);
+      setSyncStatus('error');
     }
-    syncFromApi();
-    return () => {
-      isMounted = false;
-    };
   }, []);
+
+  // Multi-device real-time sync (initial load, 20s interval, and tab focus)
+  useEffect(() => {
+    syncFromApi(false);
+
+    // Background sync every 20 seconds for cross-device updates
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncFromApi(true);
+      }
+    }, 20000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncFromApi(true);
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [syncFromApi]);
 
   // Save matches to localStorage as reliable local cache
   useEffect(() => {
@@ -452,64 +476,58 @@ export default function App() {
     return Array.from(set).filter(Boolean).sort();
   }, [matches]);
 
-  // Match mutations with schema normalization & Real-time Cloudflare D1 API communication
-  const handleAddMatch = (newMatch: Match) => {
+  // Match mutations with schema normalization & Cloudflare Worker API communication
+  const handleAddMatch = async (newMatch: Match) => {
     const normalized = normalizeMatch(newMatch);
+    // Optimistic UI update
     setMatches((prev) => [normalized, ...prev]);
 
-    // Cloudflare D1 실시간 자동 저장
-    fetch('/api/matches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(normalized),
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          showToast('경기 등록 완료 (Cloudflare D1 자동 저장 ☁️)');
-        }
-      })
-      .catch((err) => {
-        console.warn('[D1 API] POST /api/matches failed, preserved in local cache:', err);
-      });
+    try {
+      const res = await createMatchOnApi(normalized);
+      if (res.success) {
+        showToast('경기 등록 완료 (Worker 클라우드 저장 ☁️)');
+      } else {
+        showToast('경기 등록 완료 (로컬 캐시 보관됨)');
+      }
+      syncFromApi(true);
+    } catch (err) {
+      console.warn('[MatchApi] POST match failed:', err);
+    }
   };
 
-  const handleUpdateMatch = (updatedMatch: Match) => {
+  const handleUpdateMatch = async (updatedMatch: Match) => {
     const normalized = normalizeMatch(updatedMatch);
     setMatches((prev) =>
       prev.map((m) => (String(m.id) === String(normalized.id) ? normalized : m))
     );
 
-    // Cloudflare D1 실시간 자동 반영
-    fetch('/api/matches', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(normalized),
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          showToast('경기 수정 완료 (Cloudflare D1 자동 반영 ☁️)');
-        }
-      })
-      .catch((err) => {
-        console.warn('[D1 API] PUT /api/matches failed, preserved in local cache:', err);
-      });
+    try {
+      const res = await updateMatchOnApi(normalized);
+      if (res.success) {
+        showToast('경기 수정 완료 (Worker 클라우드 반영 ☁️)');
+      } else {
+        showToast('경기 수정 완료 (로컬 캐시 보관됨)');
+      }
+      syncFromApi(true);
+    } catch (err) {
+      console.warn('[MatchApi] PUT match failed:', err);
+    }
   };
 
-  const handleDeleteMatch = (id: string) => {
+  const handleDeleteMatch = async (id: string) => {
     setMatches((prev) => prev.filter((m) => String(m.id) !== String(id)));
 
-    // Cloudflare D1 실시간 자동 삭제
-    fetch(`/api/matches?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          showToast('경기 삭제 완료 (Cloudflare D1 자동 반영 ☁️)');
-        }
-      })
-      .catch((err) => {
-        console.warn('[D1 API] DELETE /api/matches failed:', err);
-      });
+    try {
+      const res = await deleteMatchOnApi(id);
+      if (res.success) {
+        showToast('경기 삭제 완료 (Worker 클라우드 반영 ☁️)');
+      } else {
+        showToast('경기 삭제 완료 (로컬 캐시 보관됨)');
+      }
+      syncFromApi(true);
+    } catch (err) {
+      console.warn('[MatchApi] DELETE match failed:', err);
+    }
   };
 
   const handleImportMatches = (importedList: Match[], mode: 'replace' | 'merge') => {
@@ -589,6 +607,11 @@ export default function App() {
         onToggleMute={toggleMute}
         bgmVolume={bgmVolume}
         onChangeVolume={handleVolumeChange}
+        isSyncing={syncStatus === 'syncing'}
+        onRefresh={() => {
+          showToast('Cloudflare 실시간 동기화 중... ☁️');
+          syncFromApi(false);
+        }}
       />
 
       {/* Main Content Area */}
@@ -612,7 +635,6 @@ export default function App() {
             onAddMatch={handleAddMatch}
             onUpdateMatch={handleUpdateMatch}
             onDeleteMatch={handleDeleteMatch}
-            onImportMatches={handleImportMatches}
             isAdmin={isAdmin}
             onAdminLoginSuccess={handleAdminLoginSuccess}
             onToast={showToast}

@@ -13,6 +13,7 @@ import {
   STORAGE_KEY_BACKUP,
   getInitialMatches,
 } from '../data/initialMatches';
+import { WORKER_API_ENDPOINT } from './matchApi';
 
 /**
  * Common Match Repository Interface
@@ -122,7 +123,7 @@ export class RestApiMatchRepository implements IMatchRepository {
   private baseUrl: string;
   private headers: Record<string, string>;
 
-  constructor(baseUrl: string = '/api/matches', headers: Record<string, string> = {}) {
+  constructor(baseUrl: string = WORKER_API_ENDPOINT, headers: Record<string, string> = {}) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.headers = {
       'Content-Type': 'application/json',
@@ -308,8 +309,9 @@ export class SupabaseMatchRepository implements IMatchRepository {
 
 /**
  * Active Repository Singleton Provider
+ * Defaults to Cloudflare Worker REST API for live multi-device synchronization.
  */
-let activeRepository: IMatchRepository = new LocalStorageMatchRepository();
+let activeRepository: IMatchRepository = new RestApiMatchRepository(WORKER_API_ENDPOINT);
 
 export function getMatchRepository(): IMatchRepository {
   return activeRepository;
