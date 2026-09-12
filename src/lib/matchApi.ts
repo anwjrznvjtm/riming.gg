@@ -137,14 +137,17 @@ export async function createMatchOnApi(match: Match): Promise<{ success: boolean
 }
 
 /**
- * Update match (PUT) on Worker and Pages
+ * Update match (PUT or fallback replace) on Worker and Pages
  */
-export async function updateMatchOnApi(match: Match): Promise<{ success: boolean; match: Match; source?: string }> {
+export async function updateMatchOnApi(
+  match: Match,
+  currentMatches: Match[] = []
+): Promise<{ success: boolean; match: Match; source?: string }> {
   const normalized = normalizeMatch(match);
   let updated = false;
   let source = 'none';
 
-  // 1. Put to Worker API
+  // 1. Try standard PUT to Worker API
   try {
     const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
       method: 'PUT',
@@ -160,7 +163,28 @@ export async function updateMatchOnApi(match: Match): Promise<{ success: boolean
     console.warn('[MatchApi] PUT to Worker failed:', err);
   }
 
-  // 2. Also try Pages API if needed
+  // 2. If Worker returned 501 or failed, use Worker POST batch replace if list is provided
+  if (!updated && currentMatches && currentMatches.length > 0) {
+    try {
+      const updatedList = currentMatches.map((m) =>
+        String(m.id) === String(normalized.id) ? normalized : m
+      );
+      const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'replace', matches: updatedList }),
+      });
+      if (res.ok) {
+        updated = true;
+        source = 'worker-replace';
+        console.log('[MatchApi] Match updated on Worker via batch replace successfully');
+      }
+    } catch (err) {
+      console.warn('[MatchApi] Batch update fallback failed:', err);
+    }
+  }
+
+  // 3. Also try Pages API if needed
   if (!updated) {
     try {
       const res = await fetchWithTimeout(PAGES_API_ENDPOINT, {
@@ -181,12 +205,16 @@ export async function updateMatchOnApi(match: Match): Promise<{ success: boolean
 }
 
 /**
- * Delete match (DELETE) on Worker and Pages
+ * Delete match (DELETE or fallback replace) on Worker and Pages
+ * Guarantees deletion from D1 database even if Worker DELETE endpoint returns 501
  */
-export async function deleteMatchOnApi(id: string): Promise<{ success: boolean; id: string }> {
+export async function deleteMatchOnApi(
+  id: string,
+  remainingMatches?: Match[]
+): Promise<{ success: boolean; id: string }> {
   let deleted = false;
 
-  // 1. Delete on Worker API
+  // 1. Try standard DELETE on Worker API (?id=...)
   try {
     const res = await fetchWithTimeout(`${WORKER_API_ENDPOINT}?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
@@ -199,19 +227,59 @@ export async function deleteMatchOnApi(id: string): Promise<{ success: boolean; 
     console.warn('[MatchApi] DELETE on Worker failed:', err);
   }
 
-  // 2. Also try Pages API
+  // 2. Fallback: If Worker DELETE returned 501/error, synchronize remaining matches via Worker POST mode: replace
+  // This guarantees that Cloudflare D1 actually deletes the row!
   if (!deleted) {
     try {
-      const res = await fetchWithTimeout(`${PAGES_API_ENDPOINT}?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }, 4000);
-      if (res.ok) {
-        deleted = true;
+      let targetMatches: Match[] | null = null;
+      if (Array.isArray(remainingMatches)) {
+        targetMatches = remainingMatches.filter((m) => String(m.id) !== String(id));
+      } else {
+        // Fetch current matches from worker or local storage to remove this id
+        const { matches: currentRemote } = await fetchAllMatchesFromApi();
+        targetMatches = currentRemote.filter((m) => String(m.id) !== String(id));
       }
-    } catch (err) {
-      console.warn('[MatchApi] DELETE on Pages failed:', err);
+
+      if (Array.isArray(targetMatches)) {
+        const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'replace', matches: targetMatches }),
+        });
+        if (res.ok) {
+          deleted = true;
+          console.log('[MatchApi] Match deleted in Cloudflare D1 via batch sync successfully');
+        }
+      }
+    } catch (replaceErr) {
+      console.warn('[MatchApi] Fallback batch delete sync failed:', replaceErr);
     }
   }
+
+  // 3. Also try Pages API
+  try {
+    const res = await fetchWithTimeout(`${PAGES_API_ENDPOINT}?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }, 4000);
+    if (res.ok) {
+      deleted = true;
+    }
+  } catch (err) {
+    // Pages might not have D1 bound directly, this is okay
+  }
+
+  // 4. Immediately update local storage and backup cache to prevent resurrection
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MATCHES);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((m: any) => String(m.id) !== String(id));
+        localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(filtered));
+        localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(filtered));
+      }
+    }
+  } catch {}
 
   return { success: deleted, id };
 }

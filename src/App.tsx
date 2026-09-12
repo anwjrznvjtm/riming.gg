@@ -498,12 +498,11 @@ export default function App() {
 
   const handleUpdateMatch = async (updatedMatch: Match) => {
     const normalized = normalizeMatch(updatedMatch);
-    setMatches((prev) =>
-      prev.map((m) => (String(m.id) === String(normalized.id) ? normalized : m))
-    );
+    const updatedList = matches.map((m) => (String(m.id) === String(normalized.id) ? normalized : m));
+    setMatches(updatedList);
 
     try {
-      const res = await updateMatchOnApi(normalized);
+      const res = await updateMatchOnApi(normalized, matches);
       if (res.success) {
         showToast('경기 수정 완료 (Worker 클라우드 반영 ☁️)');
       } else {
@@ -516,10 +515,11 @@ export default function App() {
   };
 
   const handleDeleteMatch = async (id: string) => {
-    setMatches((prev) => prev.filter((m) => String(m.id) !== String(id)));
+    const remaining = matches.filter((m) => String(m.id) !== String(id));
+    setMatches(remaining);
 
     try {
-      const res = await deleteMatchOnApi(id);
+      const res = await deleteMatchOnApi(id, remaining);
       if (res.success) {
         showToast('경기 삭제 완료 (Worker 클라우드 반영 ☁️)');
       } else {
