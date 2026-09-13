@@ -1,18 +1,19 @@
 import { Match } from '../types';
 import { normalizeMatch } from './matchSchema';
-import { STORAGE_KEY_MATCHES, STORAGE_KEY_BACKUP, getInitialMatches } from '../data/initialMatches';
 
 /**
- * Cloudflare Worker Backend API endpoint
+ * Cloudflare Worker Backend API endpoint (Absolute URL only)
+ * Do NOT use relative paths like /api/matches (Pages Functions lacks D1 binding)
  */
 export const WORKER_BASE_URL = 'https://riming-gg.janghyck2.workers.dev';
-export const WORKER_API_ENDPOINT = `${WORKER_BASE_URL}/api/matches`;
-export const PAGES_API_ENDPOINT = '/api/matches';
+
+export const STORAGE_KEY_MATCHES = 'ck_matches';
+export const STORAGE_KEY_LEGACY = 'riming_matches';
 
 /**
  * Helper to fetch with timeout
  */
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -29,257 +30,140 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 }
 
 /**
- * Fetch all matches with Worker API prioritized
+ * Fetch all matches directly from Cloudflare Worker D1
+ * Returns remote matches or throws/returns null so caller knows it failed
  */
-export async function fetchAllMatchesFromApi(): Promise<{ matches: Match[]; source: 'worker' | 'pages' | 'cache' }> {
-  // 1. First priority: Cloudflare Worker API (https://riming-gg.janghyck2.workers.dev/api/matches)
+export async function fetchAllMatchesFromWorker(): Promise<{ matches: Match[]; error?: string }> {
   try {
-    const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
+    const res = await fetchWithTimeout(WORKER_BASE_URL, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });
-    if (res.ok) {
-      const data = await res.json();
-      const rawList = Array.isArray(data) ? data : data?.matches || data?.data || [];
-      if (Array.isArray(rawList)) {
-        const normalized = rawList.map((m: any) => normalizeMatch(m));
-        // Update local backup
-        try {
-          localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(normalized));
-          localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(normalized));
-        } catch {}
-        return { matches: normalized, source: 'worker' };
-      }
+
+    if (!res.ok) {
+      return { matches: [], error: `서버 응답 오류 (HTTP ${res.status})` };
     }
-  } catch (workerErr) {
-    console.warn('[MatchApi] Cloudflare Worker fetch failed or pending, trying Pages /api/matches fallback:', workerErr);
+
+    const data = await res.json();
+    const rawList = Array.isArray(data) ? data : data?.matches || data?.data || [];
+
+    if (Array.isArray(rawList)) {
+      const normalized = rawList.map((m: any) => normalizeMatch(m));
+      // Overwrite local cache with fresh D1 data
+      try {
+        localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(normalized));
+        localStorage.setItem(STORAGE_KEY_LEGACY, JSON.stringify(normalized));
+      } catch (storageErr) {
+        console.warn('[MatchApi] localStorage save warning:', storageErr);
+      }
+      return { matches: normalized };
+    }
+
+    return { matches: [] };
+  } catch (err: any) {
+    console.error('[MatchApi] Worker GET fetch error:', err);
+    return { matches: [], error: err?.message || '네트워크 연결 오류' };
   }
-
-  // 2. Second priority: Local Pages Function (/api/matches)
-  try {
-    const res = await fetchWithTimeout(PAGES_API_ENDPOINT, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    }, 4000);
-    if (res.ok) {
-      const data = await res.json();
-      const rawList = Array.isArray(data) ? data : data?.matches || data?.data || [];
-      if (Array.isArray(rawList)) {
-        const normalized = rawList.map((m: any) => normalizeMatch(m));
-        try {
-          localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(normalized));
-          localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(normalized));
-        } catch {}
-        return { matches: normalized, source: 'pages' };
-      }
-    }
-  } catch (pagesErr) {
-    console.warn('[MatchApi] Pages /api/matches fallback also unavailable, using local cache:', pagesErr);
-  }
-
-  // 3. Fallback: Local storage cache
-  try {
-    const cached = localStorage.getItem(STORAGE_KEY_MATCHES);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed)) {
-        return { matches: parsed.map((m: any) => normalizeMatch(m)), source: 'cache' };
-      }
-    }
-  } catch {}
-
-  return { matches: getInitialMatches(), source: 'cache' };
 }
 
 /**
- * Save match (POST) to Worker and Pages
+ * Save new match (POST) to Worker
+ * Only on success will this return success: true
  */
-export async function createMatchOnApi(match: Match): Promise<{ success: boolean; match: Match; source?: string }> {
+export async function createMatchOnWorker(match: Match): Promise<{ success: boolean; match?: Match; error?: string }> {
   const normalized = normalizeMatch(match);
-  let saved = false;
-  let source = 'none';
 
-  // 1. Post to Worker API
   try {
-    const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
+    const res = await fetchWithTimeout(WORKER_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(normalized),
     });
-    if (res.ok) {
-      saved = true;
-      source = 'worker';
-      console.log('[MatchApi] Match created on Cloudflare Worker successfully');
-    }
-  } catch (err) {
-    console.warn('[MatchApi] POST to Worker failed:', err);
-  }
 
-  // 2. Also try Pages /api/matches if worker was not reachable or as dual-sync
-  if (!saved) {
-    try {
-      const res = await fetchWithTimeout(PAGES_API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(normalized),
-      }, 4000);
-      if (res.ok) {
-        saved = true;
-        source = 'pages';
-        console.log('[MatchApi] Match created on Pages API successfully');
-      }
-    } catch (err) {
-      console.warn('[MatchApi] POST to Pages failed:', err);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      return { success: false, error: `경기 저장 실패 (HTTP ${res.status}): ${errorText}` };
     }
-  }
 
-  return { success: saved, match: normalized, source };
+    const data = await res.json().catch(() => ({}));
+    if (data?.success === false) {
+      return { success: false, error: data?.error || '경기 저장 실패' };
+    }
+
+    return { success: true, match: normalized };
+  } catch (err: any) {
+    console.error('[MatchApi] Worker POST error:', err);
+    return { success: false, error: err?.message || '경기 저장 요청 중 네트워크 오류가 발생했습니다.' };
+  }
 }
 
 /**
- * Update match (PUT or fallback replace) on Worker and Pages
+ * Update existing match (PUT) to Worker
+ * Only on success will this return success: true
  */
-export async function updateMatchOnApi(
-  match: Match,
-  currentMatches: Match[] = []
-): Promise<{ success: boolean; match: Match; source?: string }> {
+export async function updateMatchOnWorker(match: Match): Promise<{ success: boolean; match?: Match; error?: string }> {
   const normalized = normalizeMatch(match);
-  let updated = false;
-  let source = 'none';
 
-  // 1. Try standard PUT to Worker API
   try {
-    const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
+    const res = await fetchWithTimeout(WORKER_BASE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(normalized),
     });
-    if (res.ok) {
-      updated = true;
-      source = 'worker';
-      console.log('[MatchApi] Match updated on Cloudflare Worker successfully');
-    }
-  } catch (err) {
-    console.warn('[MatchApi] PUT to Worker failed:', err);
-  }
 
-  // 2. If Worker returned 501 or failed, use Worker POST batch replace if list is provided
-  if (!updated && currentMatches && currentMatches.length > 0) {
-    try {
-      const updatedList = currentMatches.map((m) =>
-        String(m.id) === String(normalized.id) ? normalized : m
-      );
-      const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'replace', matches: updatedList }),
-      });
-      if (res.ok) {
-        updated = true;
-        source = 'worker-replace';
-        console.log('[MatchApi] Match updated on Worker via batch replace successfully');
-      }
-    } catch (err) {
-      console.warn('[MatchApi] Batch update fallback failed:', err);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      return { success: false, error: `경기 수정 실패 (HTTP ${res.status}): ${errorText}` };
     }
-  }
 
-  // 3. Also try Pages API if needed
-  if (!updated) {
-    try {
-      const res = await fetchWithTimeout(PAGES_API_ENDPOINT, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(normalized),
-      }, 4000);
-      if (res.ok) {
-        updated = true;
-        source = 'pages';
-      }
-    } catch (err) {
-      console.warn('[MatchApi] PUT to Pages failed:', err);
+    const data = await res.json().catch(() => ({}));
+    if (data?.success === false) {
+      return { success: false, error: data?.error || '경기 수정 실패' };
     }
-  }
 
-  return { success: updated, match: normalized, source };
+    return { success: true, match: normalized };
+  } catch (err: any) {
+    console.error('[MatchApi] Worker PUT error:', err);
+    return { success: false, error: err?.message || '경기 수정 요청 중 네트워크 오류가 발생했습니다.' };
+  }
 }
 
 /**
- * Delete match (DELETE or fallback replace) on Worker and Pages
- * Guarantees deletion from D1 database even if Worker DELETE endpoint returns 501
+ * Delete match: DELETE https://riming-gg.janghyck2.workers.dev?id=${match.id}
+ * Must receive success: true before frontend deletes from UI/localStorage
  */
-export async function deleteMatchOnApi(
-  id: string,
-  remainingMatches?: Match[]
-): Promise<{ success: boolean; id: string }> {
-  let deleted = false;
-
-  // 1. Try standard DELETE on Worker API (?id=...)
+export async function deleteMatchOnWorker(id: string): Promise<{ success: boolean; id: string; error?: string }> {
   try {
-    const res = await fetchWithTimeout(`${WORKER_API_ENDPOINT}?id=${encodeURIComponent(id)}`, {
+    const targetUrl = `${WORKER_BASE_URL}?id=${encodeURIComponent(id)}`;
+    const res = await fetchWithTimeout(targetUrl, {
       method: 'DELETE',
     });
-    if (res.ok) {
-      deleted = true;
-      console.log('[MatchApi] Match deleted on Cloudflare Worker successfully');
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      return {
+        success: false,
+        id,
+        error: `경기 삭제 실패 (HTTP ${res.status}): ${errorText || '서버 오류'}`,
+      };
     }
-  } catch (err) {
-    console.warn('[MatchApi] DELETE on Worker failed:', err);
+
+    const data = await res.json().catch(() => ({}));
+    if (data?.success === true) {
+      return { success: true, id };
+    }
+
+    return {
+      success: false,
+      id,
+      error: data?.error || 'D1 데이터베이스에서 삭제 응답을 받지 못했습니다.',
+    };
+  } catch (err: any) {
+    console.error('[MatchApi] Worker DELETE error:', err);
+    return {
+      success: false,
+      id,
+      error: err?.message || '삭제 요청 중 네트워크 오류가 발생했습니다.',
+    };
   }
-
-  // 2. Fallback: If Worker DELETE returned 501/error, synchronize remaining matches via Worker POST mode: replace
-  // This guarantees that Cloudflare D1 actually deletes the row!
-  if (!deleted) {
-    try {
-      let targetMatches: Match[] | null = null;
-      if (Array.isArray(remainingMatches)) {
-        targetMatches = remainingMatches.filter((m) => String(m.id) !== String(id));
-      } else {
-        // Fetch current matches from worker or local storage to remove this id
-        const { matches: currentRemote } = await fetchAllMatchesFromApi();
-        targetMatches = currentRemote.filter((m) => String(m.id) !== String(id));
-      }
-
-      if (Array.isArray(targetMatches)) {
-        const res = await fetchWithTimeout(WORKER_API_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'replace', matches: targetMatches }),
-        });
-        if (res.ok) {
-          deleted = true;
-          console.log('[MatchApi] Match deleted in Cloudflare D1 via batch sync successfully');
-        }
-      }
-    } catch (replaceErr) {
-      console.warn('[MatchApi] Fallback batch delete sync failed:', replaceErr);
-    }
-  }
-
-  // 3. Also try Pages API
-  try {
-    const res = await fetchWithTimeout(`${PAGES_API_ENDPOINT}?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }, 4000);
-    if (res.ok) {
-      deleted = true;
-    }
-  } catch (err) {
-    // Pages might not have D1 bound directly, this is okay
-  }
-
-  // 4. Immediately update local storage and backup cache to prevent resurrection
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_MATCHES);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const filtered = parsed.filter((m: any) => String(m.id) !== String(id));
-        localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(filtered));
-        localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(filtered));
-      }
-    }
-  } catch {}
-
-  return { success: deleted, id };
 }
