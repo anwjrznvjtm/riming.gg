@@ -693,6 +693,28 @@ export const JournalTab: React.FC<JournalTabProps> = ({
             const enemyChamps = isWRed ? m.team_b_champs : m.team_a_champs;
             const enemyWon = m.winning_team === enemyTeamKey;
 
+            // Calculate score with Allied team score on left, Enemy team score on right
+            let scoreLeft = 0;
+            let scoreRight = 0;
+            if (m.score && m.score.includes(':')) {
+              const parts = m.score.split(':').map((s) => parseInt(s.trim(), 10) || 0);
+              const redScore = parts[0];
+              const blueScore = parts[1];
+              if (isWRed) {
+                // Ally is Red
+                scoreLeft = redScore;
+                scoreRight = blueScore;
+              } else {
+                // Ally is Blue
+                scoreLeft = blueScore;
+                scoreRight = redScore;
+              }
+            } else {
+              scoreLeft = won ? 1 : 0;
+              scoreRight = won ? 0 : 1;
+            }
+            const allyEnemyScoreText = `${scoreLeft} : ${scoreRight}`;
+
             // 승/패에 따른 독립 카드 스타일 (배경 틴트, 테두리, 그림자)
             const cardBgClass = won
               ? 'bg-gradient-to-r from-[#0e213b]/95 via-[#0e192c]/95 to-[#0b1321]/95'
@@ -707,13 +729,14 @@ export const JournalTab: React.FC<JournalTabProps> = ({
             return (
               <div
                 key={m.id}
+                id={`match-${m.id}`}
                 className={`relative rounded-xl border ${cardBorderClass} ${cardBgClass} transition-all duration-200 overflow-hidden group`}
               >
                 {/* 왼쪽 사이드 액센트 바 */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${accentBarClass}`} />
 
                 <div className="p-3.5 pl-5 md:p-4.5 md:pl-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                  {/* 1. [왼쪽 영역] 날짜, CK명, 승/패 결과 뱃지, 세트 스코어 */}
+                  {/* 1. [왼쪽 영역] 날짜, CK명, 승/패 결과 뱃지, 세트 스코어 (무조건 아군 vs 적군 순서) */}
                   <div className="flex xl:flex-col justify-between xl:justify-center items-start gap-1 min-w-[140px] xl:w-[150px] border-b xl:border-b-0 xl:border-r border-white/10 pb-3 xl:pb-0 xl:pr-4 shrink-0">
                     <div className="space-y-0.5">
                       <div className="text-[11px] font-bold text-[#8a8aa0] tracking-wider uppercase">
@@ -739,9 +762,11 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                         >
                           {won ? '승리' : '패배'}
                         </span>
-                        <span className="text-[11px] text-[#a0a0b8] font-bold">
-                          {m.score || '1:0'}{' '}
-                          <span className="text-[10px] text-[#6a6a80] font-normal">({winningTeamText})</span>
+                        <span className="text-[11px] text-[#a0a0b8] font-bold" title="[아군 점수 : 적팀 점수]">
+                          {allyEnemyScoreText}{' '}
+                          <span className="text-[10px] text-[#6a6a80] font-normal">
+                            ({won ? '아군 승' : '적팀 승'})
+                          </span>
                         </span>
                       </div>
                     </div>
@@ -924,20 +949,42 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   </div>
                 </div>
 
-                {/* 밴(Ban) 정보 리본 (존재할 경우에만 하단에 콤팩트하게 표시) */}
+                {/* 밴(Ban) 정보 리본 (Data Dragon 아이콘과 함께 세련되게 표시) */}
                 {(m.ban_a.filter(Boolean).length > 0 || m.ban_b.filter(Boolean).length > 0) && (
-                  <div className="px-4 py-1.5 bg-black/40 border-t border-white/5 flex items-center gap-3 text-[10px] text-[#8a8aa0] flex-wrap">
-                    <span className="font-bold text-[#6a6a80]">BANS:</span>
+                  <div className="px-4 py-2 bg-black/50 border-t border-white/5 flex items-center gap-4 text-[11px] text-[#8a8aa0] flex-wrap">
+                    <span className="font-extrabold text-[#6a6a80] text-[10px] tracking-wider uppercase">BANS:</span>
                     {m.ban_a.filter(Boolean).length > 0 && (
-                      <div className="inline-flex items-center gap-1">
-                        <span className="text-[#f87171] font-bold">RED</span>
-                        <span className="text-[#a0a0b8]">{m.ban_a.filter(Boolean).join(', ')}</span>
+                      <div className="inline-flex items-center gap-1.5 bg-[#1a1215] border border-[#ef4444]/25 px-2 py-0.5 rounded-full">
+                        <span className="text-[#f87171] font-black text-[9px]">RED</span>
+                        <div className="inline-flex items-center gap-1">
+                          {m.ban_a.filter(Boolean).map((banName, bIdx) => (
+                            <div
+                              key={bIdx}
+                              className="inline-flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded text-[10px] text-[#e0d0d0]"
+                              title={`RED 밴: ${banName}`}
+                            >
+                              <ChampionIcon name={banName} size={15} shape="circle" />
+                              <span className="whitespace-nowrap">{banName}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {m.ban_b.filter(Boolean).length > 0 && (
-                      <div className="inline-flex items-center gap-1">
-                        <span className="text-[#60a5fa] font-bold">BLUE</span>
-                        <span className="text-[#a0a0b8]">{m.ban_b.filter(Boolean).join(', ')}</span>
+                      <div className="inline-flex items-center gap-1.5 bg-[#101724] border border-[#3b82f6]/25 px-2 py-0.5 rounded-full">
+                        <span className="text-[#60a5fa] font-black text-[9px]">BLUE</span>
+                        <div className="inline-flex items-center gap-1">
+                          {m.ban_b.filter(Boolean).map((banName, bIdx) => (
+                            <div
+                              key={bIdx}
+                              className="inline-flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded text-[10px] text-[#d0d8e8]"
+                              title={`BLUE 밴: ${banName}`}
+                            >
+                              <ChampionIcon name={banName} size={15} shape="circle" />
+                              <span className="whitespace-nowrap">{banName}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

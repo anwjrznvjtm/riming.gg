@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { searchChampions, getChosung } from '../lib/championSearch';
+import { searchChampions, searchStreamers } from '../lib/championSearch';
 import { ChampionIcon } from './ChampionIcon';
+import { StreamerAvatar } from './StreamerAvatar';
 
 interface AutocompleteInputProps {
   value: string;
@@ -33,19 +34,10 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     if (type === 'champion') {
       return searchChampions(value, sourceList);
     }
-    // Streamer search
-    const cleanVal = value.trim().toLowerCase();
-    const queryChosung = getChosung(cleanVal);
-    return sourceList
-      .filter((name) => {
-        const cleanName = name.toLowerCase();
-        if (cleanName.includes(cleanVal)) return true;
-        const nameChosung = getChosung(cleanName);
-        if (nameChosung.includes(queryChosung)) return true;
-        return false;
-      })
-      .slice(0, 8);
+    // Streamer search with Fuse.js fuzzy matching
+    return searchStreamers(value, sourceList);
   }, [value, sourceList, type]);
+
 
   useEffect(() => {
     setHighlightIndex(0);
@@ -139,6 +131,9 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                   {type === 'champion' && (
                     <ChampionIcon name={item} size={18} shape="square" className="shrink-0" />
                   )}
+                  {type === 'streamer' && (
+                    <StreamerAvatar name={item} size={18} shape="square" className="shrink-0" />
+                  )}
                   <span className="truncate font-semibold">{item}</span>
                 </div>
                 {type === 'champion' && (
@@ -148,6 +143,15 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                     }`}
                   >
                     챔피언
+                  </span>
+                )}
+                {type === 'streamer' && (
+                  <span
+                    className={`text-[9px] shrink-0 ${
+                      isHighlighted ? 'text-white/80' : 'text-[#8a8aa0]'
+                    }`}
+                  >
+                    스트리머
                   </span>
                 )}
               </button>

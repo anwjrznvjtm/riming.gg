@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const navItems = [
     { key: 'main', label: '메인' },
-    { key: 'synergy', label: '라인별 시너지' },
+    { key: 'synergy', label: '시너지' },
     { key: 'journal', label: 'CK 일지' },
     { key: 'rolland', label: '롤랜드' },
   ];

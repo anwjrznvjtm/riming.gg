@@ -29,29 +29,68 @@ export const MainTab: React.FC<MainTabProps> = ({
 
   const resultRef = useRef<HTMLDivElement>(null);
 
-  // Fill example rosters using registered streamers only
+  // Fill example rosters using registered streamers only matching their primary roles
   const handleFillExample = () => {
     if (allStreamers.length < 10) {
       onToast(`CK 일지에 등록된 스트리머가 10명 이상이어야 자동 채우기가 가능합니다. (현재 ${allStreamers.length}명)`);
       return;
     }
+
     const others = allStreamers.filter((s) => !isWooriming(s));
-    setTeamA({
-      top: others[0] || '',
-      jgl: others[1] || '',
-      mid: others[2] || '',
+
+    // Group players by primary line
+    const byRole: Record<LineName, string[]> = {
+      TOP: [],
+      JGL: [],
+      MID: [],
+      ADC: [],
+      SUP: [],
+    };
+
+    others.forEach((p) => {
+      const line = stats.playerPrimaryLines[p] || 'TOP';
+      byRole[line].push(p);
+    });
+
+    const used = new Set<string>();
+    const pickPlayerForLine = (role: LineName): string => {
+      // 1. Try finding a player whose primary role matches and is unused
+      const match = byRole[role].find((p) => !used.has(p));
+      if (match) {
+        used.add(match);
+        return match;
+      }
+      // 2. Fallback to any unused streamer
+      const fallback = others.find((p) => !used.has(p));
+      if (fallback) {
+        used.add(fallback);
+        return fallback;
+      }
+      return '';
+    };
+
+    // Fill Team A: Wooriming in ADC
+    const newTeamA: TeamRoster = {
+      top: pickPlayerForLine('TOP'),
+      jgl: pickPlayerForLine('JGL'),
+      mid: pickPlayerForLine('MID'),
       adc: WOORIMING,
-      sup: others[3] || '',
-    });
-    setTeamB({
-      top: others[4] || '',
-      jgl: others[5] || '',
-      mid: others[6] || '',
-      adc: others[7] || '',
-      sup: others[8] || '',
-    });
+      sup: pickPlayerForLine('SUP'),
+    };
+
+    // Fill Team B
+    const newTeamB: TeamRoster = {
+      top: pickPlayerForLine('TOP'),
+      jgl: pickPlayerForLine('JGL'),
+      mid: pickPlayerForLine('MID'),
+      adc: pickPlayerForLine('ADC'),
+      sup: pickPlayerForLine('SUP'),
+    };
+
+    setTeamA(newTeamA);
+    setTeamB(newTeamB);
     setErrorMsg('');
-    onToast('CK 일지에 등록된 스트리머 10인으로 채워졌습니다.');
+    onToast('스트리머들의 주 라인에 맞춰 10인 명단을 채웠습니다.');
   };
 
   const handleClearTeams = () => {
@@ -354,15 +393,11 @@ export const MainTab: React.FC<MainTabProps> = ({
         {/* 2. 승률 추이 & 최근 경기 흐름 (사이드바 내부) */}
         <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 md:p-6 flex flex-col justify-between">
           <div className="space-y-3.5">
-            {/* Header */}
+            {/* Header: 승률 추이 위젯 제목 옆 부가 설명 글씨 지우고 📊 이모티콘만 남김 */}
             <div className="flex justify-between items-center">
-              <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
+              <h2 className="text-[16px] font-bold text-white flex items-center">
                 <span>📊</span>
-                <span>승률 추이</span>
               </h2>
-              <span className="text-[11px] font-normal text-[#8a8aa0] bg-[#1e1e2a] px-2.5 py-0.5 rounded-full border border-[#2a2a3a]">
-                2026 시즌
-              </span>
             </div>
 
             {/* 전체 승률 */}
@@ -418,13 +453,13 @@ export const MainTab: React.FC<MainTabProps> = ({
               </div>
             </div>
 
-            {/* Recent 10 games streak with Blue (우리밍_ 승) / Red (우리밍_ 패) */}
+            {/* Recent 10 games streak (한 화면에 다 들어오도록 두 줄(5개 + 5개)로 깔끔하게 배치) */}
             <div>
               <div className="text-[11px] text-[#6a6a80] mb-1.5 font-semibold flex flex-wrap items-center justify-between gap-1">
                 <span>최근 10경기 흐름</span>
                 <span className="text-[9px] text-[#8a8aa0]">승(Blue) / 패(Red) • 우리밍_ 기준</span>
               </div>
-              <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2 sm:p-2.5">
+              <div className="bg-[#08080c] border border-[#1e1e2a] rounded-[12px] p-2.5">
                 {/* Direction labels: 왼쪽 [10경기 전], 오른쪽 [최신 경기] */}
                 <div className="flex items-center justify-between text-[10px] mb-2 px-1 font-medium">
                   <span className="flex items-center gap-1 text-[#8a8aa0] bg-[#1e1e2a] px-2 py-0.5 rounded">
@@ -434,23 +469,23 @@ export const MainTab: React.FC<MainTabProps> = ({
                     [최신 경기]
                   </span>
                 </div>
-                <div className="flex gap-1 sm:gap-1.5 overflow-x-auto pb-0.5 min-w-0">
-                  {stats.recentTenMatches.length === 0 ? (
-                    <div className="text-[11px] text-[#5a5a6a] py-2 text-center w-full">경기 데이터가 없습니다.</div>
-                  ) : (
-                    stats.recentTenMatches.map(({ match, won }, idx) => {
+                {stats.recentTenMatches.length === 0 ? (
+                  <div className="text-[11px] text-[#5a5a6a] py-3 text-center w-full">경기 데이터가 없습니다.</div>
+                ) : (
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {stats.recentTenMatches.map(({ match, won }, idx) => {
                       const isLatest = idx === stats.recentTenMatches.length - 1;
                       return (
                         <div
                           key={match.id}
-                          className={`flex-1 min-w-[22px] sm:min-w-[26px] h-[34px] rounded-[6px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative shrink-0 sm:shrink ${
+                          className={`h-[34px] rounded-[8px] flex flex-col items-center justify-center font-black border transition-all hover:scale-105 relative ${
                             won
-                              ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40'
-                              : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40'
-                          } ${isLatest ? 'ring-1 ring-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.3)]' : ''}`}
+                              ? 'bg-[#3b82f6]/20 text-[#60a5fa] border-[#3b82f6]/40 shadow-[0_0_10px_rgba(59,130,246,0.1)]'
+                              : 'bg-[#ef4444]/20 text-[#f87171] border-[#ef4444]/40 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
+                          } ${isLatest ? 'ring-2 ring-[#a78bfa] shadow-[0_0_12px_rgba(167,139,250,0.35)]' : ''}`}
                           title={`${match.date} ${match.ck_name} - 우리밍_ ${won ? '승리' : '패배'} ${isLatest ? '(가장 최신 경기)' : ''}`}
                         >
-                          <span className="text-[11px] leading-none">{won ? '승' : '패'}</span>
+                          <span className="text-[12px] leading-none">{won ? '승' : '패'}</span>
                           {isLatest && (
                             <span className="text-[7px] text-[#c4b5fd] font-bold leading-none mt-0.5 whitespace-nowrap">
                               최신
@@ -458,9 +493,9 @@ export const MainTab: React.FC<MainTabProps> = ({
                           )}
                         </div>
                       );
-                    })
-                  )}
-                </div>
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>

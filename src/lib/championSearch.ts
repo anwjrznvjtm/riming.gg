@@ -1,3 +1,4 @@
+import Fuse from 'fuse.js';
 import { CHAMPIONS_LIST } from '../data/initialMatches';
 
 const CHOSUNG_LIST = [
@@ -102,9 +103,54 @@ export function searchChampions(rawQuery: string, sourceList: string[] = CHAMPIO
     return { champ, score };
   });
 
-  return scored
+  const exactAndChosungMatches = scored
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)
-    .map((s) => s.champ)
-    .slice(0, 8);
+    .map((s) => s.champ);
+
+  if (exactAndChosungMatches.length >= 5 || isChosungQuery) {
+    return exactAndChosungMatches.slice(0, 8);
+  }
+
+  // Use Fuse.js for fuzzy fallback if results are sparse
+  const fuse = new Fuse(candidates, {
+    threshold: 0.35,
+    distance: 50,
+  });
+  const fuseResults = fuse.search(cleanQuery).map((r) => r.item);
+
+  return Array.from(new Set([...exactAndChosungMatches, ...fuseResults])).slice(0, 8);
 }
+
+// Fuse.js fuzzy search for Streamer names
+export function searchStreamers(rawQuery: string, sourceList: string[]): string[] {
+  if (!rawQuery || !rawQuery.trim()) return [];
+  const query = rawQuery.trim().toLowerCase();
+  const cleanQuery = query.replace(/\s+/g, '');
+  const isChosungQuery = /^[ㄱ-ㅎ]+$/.test(cleanQuery);
+  const queryChosung = getChosung(cleanQuery);
+
+  const direct = sourceList.filter((name) => {
+    const cleanName = name.toLowerCase().replace(/\s+/g, '');
+    if (cleanName.includes(cleanQuery)) return true;
+    if (isChosungQuery) {
+      const nameChosung = getChosung(cleanName);
+      if (nameChosung.includes(queryChosung)) return true;
+    }
+    return false;
+  });
+
+  if (direct.length >= 6 || isChosungQuery) {
+    return direct.slice(0, 8);
+  }
+
+  // Fuse.js fallback
+  const fuse = new Fuse(sourceList, {
+    threshold: 0.4,
+    distance: 40,
+  });
+  const fuseResults = fuse.search(cleanQuery).map((r) => r.item);
+
+  return Array.from(new Set([...direct, ...fuseResults])).slice(0, 8);
+}
+
