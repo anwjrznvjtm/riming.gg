@@ -3,10 +3,7 @@ import { Match } from './types';
 import {
   PASSCODE,
   ADMIN_SESSION_KEY,
-  STORAGE_KEY_MATCHES,
-  STORAGE_KEY_BACKUP,
   CHAMPIONS_LIST,
-  KNOWN_STREAMERS,
   getInitialMatches,
 } from './data/initialMatches';
 import { calculateStats } from './lib/stats';
@@ -36,34 +33,26 @@ declare global {
 }
 
 export default function App() {
-  const [matches, setMatches] = useState<Match[]>(() => {
-    try {
-      const alreadyPurged = localStorage.getItem('riming_mock_purged_v1');
-      if (!alreadyPurged) {
-        localStorage.removeItem(STORAGE_KEY_MATCHES);
-        localStorage.removeItem(STORAGE_KEY_BACKUP);
-        localStorage.setItem('riming_mock_purged_v1', 'true');
-        return [];
-      }
-      const saved = localStorage.getItem(STORAGE_KEY_MATCHES);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.map((m) => normalizeMatch(m));
-        }
-      }
-    } catch (e) {
-      console.warn('localStorage read error, fallback to initial matches', e);
-    }
-    return getInitialMatches();
-  });
+  // 로컬스토리지 사용 안 함 - Cloudflare Worker만 사용!
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [currentTab, setCurrentTab] = useState<string>('main');
+  const [targetStreamer, setTargetStreamer] = useState<string | null>(null);
+  const [targetMatchId, setTargetMatchId] = useState<string | null>(null);
+  const [targetStreamerRole, setTargetStreamerRole] = useState<'all' | 'ally' | 'enemy'>('all');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>('');
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+
+  const handleJumpToStreamer = useCallback((streamerName: string, matchId?: string, teamRole: 'all' | 'ally' | 'enemy' = 'all') => {
+    setTargetStreamer(streamerName);
+    setTargetMatchId(matchId || null);
+    setTargetStreamerRole(teamRole);
+    setCurrentTab('journal');
+  }, []);
 
   const [isBgmPlaying, setIsBgmPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -73,7 +62,6 @@ export default function App() {
   const currentTrackRef = useRef<BgmTrack>(BGM_PLAYLIST[0]);
   const [currentTrack, setCurrentTrack] = useState<BgmTrack>(BGM_PLAYLIST[0]);
   const isQueueInitRef = useRef<boolean>(false);
-  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   if (!isQueueInitRef.current) {
     const initialQueue = createBgmQueue(BGM_PLAYLIST);
@@ -91,7 +79,6 @@ export default function App() {
     hasInteractedRef.current = true;
     const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
     const lastTrack = currentTrackRef.current;
-
     let nextTrack: BgmTrack;
     if (queueRef.current.length === 0) {
       const newQueue = createBgmQueue(BGM_PLAYLIST, lastTrack?.id);
@@ -100,10 +87,8 @@ export default function App() {
     } else {
       nextTrack = queueRef.current.shift()!;
     }
-
     currentTrackRef.current = nextTrack;
     setCurrentTrack(nextTrack);
-
     if (player && typeof player.loadVideoById === 'function') {
       try {
         player.loadVideoById(nextTrack.videoId);
@@ -115,7 +100,6 @@ export default function App() {
         console.warn('Failed to load next video by ID', e);
       }
     }
-
     showToast(`🎵 ${isAuto ? '다음 곡' : 'BGM 전환'}: ${nextTrack.title} (${nextTrack.artist})`);
   };
 
@@ -132,47 +116,33 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
+  // Cloudflare Worker에서만 데이터 가져오기 - 로컬스토리지 사용 안 함!
   const syncFromApi = useCallback(async (isSilent = false) => {
     if (!isSilent) setSyncStatus('syncing');
     try {
-      const { matches: remoteMatches, source } = await fetchAllMatchesFromApi();
+      const { matches: remoteMatches, source, error } = await fetchAllMatchesFromApi();
+      if (error) {
+        console.warn('[Cloud Sync] Error:', error);
+        if (!isSilent) setSyncStatus('error');
+        return;
+      }
       if (Array.isArray(remoteMatches)) {
-        // 블랙리스트 필터 - 모바일에서 삭제해도 PC에서 부활 방지
-        let filtered = remoteMatches;
-        try {
-          const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
-          if (Array.isArray(deleted) && deleted.length > 0) {
-            deleted.forEach((id: string) => deletedIdsRef.current.add(String(id)));
-            filtered = remoteMatches.filter(m => !deletedIdsRef.current.has(String(m.id)));
-            if (filtered.length !== remoteMatches.length) {
-              console.log(`[Sync] ${remoteMatches.length - filtered.length}개 삭제된 경기 필터링`);
-            }
-          }
-        } catch {}
-        setMatches(filtered);
+        setMatches(remoteMatches);
         setSyncStatus('synced');
-        console.log(`[Cloud Sync] ${filtered.length} matches from ${source} (원본 ${remoteMatches.length})`);
-        try {
-          localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(filtered));
-        } catch {}
+        setIsLoading(false);
+        console.log(`[Cloud Sync] ${remoteMatches.length} matches from ${source} - Cloudflare Only!`);
       }
     } catch (err) {
       console.warn('[Cloud Sync] Failed:', err);
       setSyncStatus('error');
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // 초기 블랙리스트 로드
-    try {
-      const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
-      if (Array.isArray(deleted)) {
-        deleted.forEach((id: string) => deletedIdsRef.current.add(String(id)));
-      }
-    } catch {}
-    // 초기 동기화 - PC와 모바일 동일 데이터로 맞춤
+    // 초기 로드 - Cloudflare에서만!
     syncFromApi(false);
-    // 30초마다 동기화 (블랙리스트 필터링 포함)
+    // 30초마다 동기화 - PC/모바일 연동!
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncFromApi(true);
@@ -192,14 +162,7 @@ export default function App() {
     };
   }, [syncFromApi]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(matches));
-      localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(matches));
-    } catch (e) {
-      console.error('Failed to save to localStorage', e);
-    }
-  }, [matches]);
+  // 로컬스토리지 저장 로직 완전 제거! - Cloudflare만 사용!
 
   useEffect(() => {
     try {
@@ -241,48 +204,26 @@ export default function App() {
       try {
         const player = new window.YT.Player('youtube-bgm-iframe-target', {
           videoId: currentTrackRef.current.videoId,
-          playerVars: {
-            autoplay: 1,
-            controls: 0,
-            loop: 0,
-            playsinline: 1,
-            enablejsapi: 1,
-            rel: 0,
-            modestbranding: 1,
-          },
+          playerVars: { autoplay: 1, controls: 0, loop: 0, playsinline: 1, enablejsapi: 1, rel: 0, modestbranding: 1 },
           events: {
             onReady: (event: any) => {
               try {
                 event.target.setVolume(bgmVolume);
-                if (isMuted) {
-                  event.target.mute();
-                } else {
-                  event.target.unMute();
-                }
-                if (!isUserPausedRef.current) {
-                  event.target.playVideo();
-                }
+                if (isMuted) event.target.mute();
+                else event.target.unMute();
+                if (!isUserPausedRef.current) event.target.playVideo();
               } catch (err) {}
             },
             onStateChange: (event: any) => {
               if (!isMounted) return;
-              if (event.data === 1) {
-                setIsBgmPlaying(true);
-              } else if (event.data === 2) {
-                setIsBgmPlaying(false);
-              } else if (event.data === 0) {
-                if (!isUserPausedRef.current) {
-                  playNextTrackRef.current(true);
-                }
+              if (event.data === 1) setIsBgmPlaying(true);
+              else if (event.data === 2) setIsBgmPlaying(false);
+              else if (event.data === 0) {
+                if (!isUserPausedRef.current) playNextTrackRef.current(true);
               }
             },
             onError: (event: any) => {
-              console.warn('YouTube Player error code:', event.data);
-              setTimeout(() => {
-                if (!isUserPausedRef.current) {
-                  playNextTrackRef.current(true);
-                }
-              }, 800);
+              setTimeout(() => { if (!isUserPausedRef.current) playNextTrackRef.current(true); }, 800);
             },
           },
         });
@@ -292,9 +233,8 @@ export default function App() {
         console.warn('Error creating YT.Player', e);
       }
     };
-    if (window.YT && window.YT.Player) {
-      setupPlayer();
-    } else {
+    if (window.YT && window.YT.Player) setupPlayer();
+    else {
       const prevCallback = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
         if (typeof prevCallback === 'function') prevCallback();
@@ -306,14 +246,9 @@ export default function App() {
           if (isMounted) setupPlayer();
         }
       }, 200);
-      return () => {
-        isMounted = false;
-        clearInterval(interval);
-      };
+      return () => { isMounted = false; clearInterval(interval); };
     }
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
@@ -328,14 +263,10 @@ export default function App() {
       const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
       if (player && typeof player.playVideo === 'function') {
         try {
-          if (!isMuted) {
-            player.unMute();
-          }
+          if (!isMuted) player.unMute();
           player.setVolume(bgmVolume > 0 ? bgmVolume : 35);
           const state = player.getPlayerState?.();
-          if (state !== 1) {
-            player.playVideo();
-          }
+          if (state !== 1) player.playVideo();
         } catch (e) {}
       }
     };
@@ -366,21 +297,15 @@ export default function App() {
         showToast('BGM 일시정지');
       } else {
         isUserPausedRef.current = false;
-        if (isMuted) {
-          setIsMuted(false);
-          player.unMute();
-        } else {
-          player.unMute();
-        }
+        if (isMuted) { setIsMuted(false); player.unMute(); }
+        else player.unMute();
         player.setVolume(bgmVolume > 0 ? bgmVolume : 35);
         if (bgmVolume === 0) setBgmVolume(35);
         player.playVideo();
         setIsBgmPlaying(true);
         showToast(`BGM 재생 🎵 (${currentTrackRef.current.title})`);
       }
-    } catch (e) {
-      console.warn(e);
-    }
+    } catch (e) { console.warn(e); }
   };
 
   const toggleMute = () => {
@@ -390,25 +315,18 @@ export default function App() {
     setIsMuted(nextMute);
     if (!player || typeof player.mute !== 'function') return;
     try {
-      if (nextMute) {
-        player.mute();
-        showToast('음소거 됨');
-      } else {
+      if (nextMute) { player.mute(); showToast('음소거 됨'); }
+      else {
         player.unMute();
         player.setVolume(bgmVolume > 0 ? bgmVolume : 35);
         if (bgmVolume === 0) setBgmVolume(35);
         if (!isUserPausedRef.current) {
           const state = player.getPlayerState?.();
-          if (state !== 1) {
-            player.playVideo();
-            setIsBgmPlaying(true);
-          }
+          if (state !== 1) { player.playVideo(); setIsBgmPlaying(true); }
         }
         showToast('음소거 해제 🔊');
       }
-    } catch (e) {
-      console.warn(e);
-    }
+    } catch (e) { console.warn(e); }
   };
 
   const handleVolumeChange = (val: number) => {
@@ -417,16 +335,10 @@ export default function App() {
     if (!player || typeof player.setVolume !== 'function') return;
     try {
       player.setVolume(val);
-      if (val > 0 && isMuted) {
-        setIsMuted(false);
-        player.unMute();
-      }
+      if (val > 0 && isMuted) { setIsMuted(false); player.unMute(); }
       if (val > 0 && !isUserPausedRef.current) {
         const state = player.getPlayerState?.();
-        if (state !== 1) {
-          player.playVideo();
-          setIsBgmPlaying(true);
-        }
+        if (state !== 1) { player.playVideo(); setIsBgmPlaying(true); }
       }
     } catch (e) {}
   };
@@ -438,12 +350,8 @@ export default function App() {
     set.add('우리밍_');
     for (const m of matches) {
       for (const k of ['top', 'jgl', 'mid', 'adc', 'sup'] as const) {
-        if (m.team_a && m.team_a[k] && m.team_a[k].trim()) {
-          set.add(m.team_a[k].trim());
-        }
-        if (m.team_b && m.team_b[k] && m.team_b[k].trim()) {
-          set.add(m.team_b[k].trim());
-        }
+        if (m.team_a && m.team_a[k] && m.team_a[k].trim()) set.add(m.team_a[k].trim());
+        if (m.team_b && m.team_b[k] && m.team_b[k].trim()) set.add(m.team_b[k].trim());
       }
     }
     return Array.from(set).filter(Boolean).sort((a, b) => {
@@ -467,100 +375,109 @@ export default function App() {
     return Array.from(set).filter(Boolean).sort();
   }, [matches]);
 
-  // FIXED: Match mutations - delayed sync to prevent reverting to old D1 data
+  // Cloudflare Only - 로컬스토리지 사용 안 함!
   const handleAddMatch = async (newMatch: Match) => {
     const normalized = normalizeMatch(newMatch);
+    // Optimistic update
     setMatches((prev) => [normalized, ...prev]);
     try {
       const res = await createMatchOnApi(normalized);
       if (res.success) {
-        showToast('경기 등록 완료');
+        showToast('경기 등록 완료 ☁️');
+        // 클라우드에서 다시 불러와서 PC/모바일 동기화!
+        setTimeout(() => syncFromApi(true), 500);
       } else {
-        showToast('경기 등록 완료');
+        showToast('경기 등록 실패: ' + (res.error || ''));
+        // 실패하면 롤백
+        setMatches((prev) => prev.filter(m => String(m.id) !== String(normalized.id)));
       }
-      // 동기화는 30초 interval에서 블랙리스트 필터링하며 처리
     } catch (err) {
-      console.warn('[MatchApi] POST match failed:', err);
+      console.warn('POST failed:', err);
+      showToast('경기 등록 실패 - 네트워크 오류');
+      setMatches((prev) => prev.filter(m => String(m.id) !== String(normalized.id)));
     }
   };
 
   const handleUpdateMatch = async (updatedMatch: Match) => {
     const normalized = normalizeMatch(updatedMatch);
-    const updatedList = matches.map((m) => (String(m.id) === String(normalized.id) ? normalized : m));
-    setMatches(updatedList);
+    const prevMatches = [...matches];
+    setMatches((prev) => prev.map((m) => (String(m.id) === String(normalized.id) ? normalized : m)));
     try {
-      const res = await updateMatchOnApi(normalized, matches);
+      const res = await updateMatchOnApi(normalized);
       if (res.success) {
-        showToast('경기 수정 완료');
+        showToast('경기 수정 완료 ☁️');
+        setTimeout(() => syncFromApi(true), 500);
       } else {
-        showToast('경기 수정 완료 (로컬 캐시 보관됨) - ' + (res.error || ''));
+        showToast('경기 수정 실패: ' + (res.error || ''));
+        setMatches(prevMatches);
       }
-      // FIX: 즉시 동기화하면 D1 반영 전 옛날 데이터로 덮어씌워져서 다시 블루로 돌아오는 현상 방지
-      // 동기화는 30초 interval에서 블랙리스트 필터링하며 처리
     } catch (err) {
-      console.warn('[MatchApi] PUT match failed:', err);
-      showToast('로컬에 수정됨 (클라우드 동기화 실패)');
+      console.warn('PUT failed:', err);
+      showToast('경기 수정 실패');
+      setMatches(prevMatches);
     }
   };
 
   const handleDeleteMatch = async (id: string) => {
+    const prevMatches = [...matches];
     const remaining = matches.filter((m) => String(m.id) !== String(id));
     setMatches(remaining);
     try {
-      const res = await deleteMatchOnApi(id, remaining);
+      const res = await deleteMatchOnApi(id);
       if (res.success) {
-        showToast('경기 삭제 완료');
+        showToast('경기 삭제 완료 ☁️ - PC/모바일 모두 삭제됨!');
       } else {
-        showToast('경기 삭제 완료');
+        showToast('경기 삭제 실패: ' + (res.error || ''));
+        setMatches(prevMatches);
       }
-      // 동기화는 30초 interval에서 블랙리스트 필터링하며 처리
     } catch (err) {
-      console.warn('[MatchApi] DELETE match failed:', err);
+      console.warn('DELETE failed:', err);
+      showToast('경기 삭제 실패 - 네트워크 오류');
+      setMatches(prevMatches);
     }
   };
 
-  const handleImportMatches = (importedList: Match[], mode: 'replace' | 'merge') => {
+  const handleImportMatches = async (importedList: Match[], mode: 'replace' | 'merge') => {
     const cleanList = importedList.map((m) => normalizeMatch(m));
-    if (mode === 'replace') {
-      setMatches(cleanList);
-      showToast(`전적 데이터 전체 복원 완료! (총 ${cleanList.length}경기)`);
-    } else {
-      setMatches((prev) => {
-        const existingIds = new Set(prev.map((m) => String(m.id)));
-        const newOnes = cleanList.filter((m) => !existingIds.has(String(m.id)));
-        const combined = [...newOnes, ...prev].sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-        showToast(`전적 데이터 병합 완료! (+${newOnes.length}경기 추가)`);
-        return combined;
+    try {
+      // Cloudflare에 배치 저장 - 로컬스토리지 사용 안 함!
+      const res = await fetch('https://riming-gg.janghyck2.workers.dev', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, matches: cleanList }),
+        mode: 'cors'
       });
+      if (res.ok) {
+        await syncFromApi(false);
+        showToast(`전적 복원 완료! (총 ${cleanList.length}경기) ☁️`);
+      }
+    } catch (err) {
+      console.warn('Import failed:', err);
+      showToast('복원 실패');
     }
-    fetch('/api/matches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, matches: cleanList }),
-    }).catch((err) => {
-      console.warn('[D1 API] Batch POST /api/matches failed:', err);
-    });
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#08080c] grid place-items-center">
+        <div className="text-white text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-[#7c3aed] border-t-transparent rounded-full mx-auto mb-3"></div>
+          <div className="text-[14px]">Cloudflare에서 데이터 불러오는 중... ☁️</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#08080c] text-[#e6e6ef] selection:bg-[#8b5cf6]/30 flex flex-col justify-between">
-      <div
-        className="fixed bottom-0 right-0 w-[240px] h-[135px] opacity-[0.005] overflow-hidden pointer-events-none -z-50"
-        aria-hidden="true"
-      >
+      <div className="fixed bottom-0 right-0 w-[240px] h-[135px] opacity-[0.005] overflow-hidden pointer-events-none -z-50" aria-hidden="true">
         <div id="youtube-bgm-iframe-target" className="w-full h-full" />
       </div>
       <datalist id="players-datalist">
-        {allStreamers.map((name) => (
-          <option key={name} value={name} />
-        ))}
+        {allStreamers.map((name) => (<option key={name} value={name} />))}
       </datalist>
       <datalist id="champs-datalist">
-        {allChampions.map((champ) => (
-          <option key={champ} value={champ} />
-        ))}
+        {allChampions.map((champ) => (<option key={champ} value={champ} />))}
       </datalist>
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] bg-[#1e1e2a] border border-[#2a2a3a] text-white px-4 py-2 rounded-full text-[12px] shadow-2xl animate-[fadeIn_0.2s] max-w-[90vw] text-center font-medium">
@@ -572,6 +489,7 @@ export default function App() {
         onTabChange={setCurrentTab}
         matches={matches}
         allStreamers={allStreamers}
+        onSelectStreamer={handleJumpToStreamer}
         isAdmin={isAdmin}
         onLoginClick={() => setIsAdminModalOpen(true)}
         onLogoutClick={handleAdminLogout}
@@ -588,44 +506,22 @@ export default function App() {
       />
       <main className="max-w-[1100px] w-full mx-auto px-4 md:px-6 py-6 md:py-10 flex-1">
         {currentTab === 'main' && (
-          <MainTab
-            stats={stats}
-            matches={matches}
-            onOpenSummaryModal={() => setIsSummaryModalOpen(true)}
-            onToast={showToast}
-            allStreamers={allStreamers}
-          />
+          <MainTab stats={stats} matches={matches} onOpenSummaryModal={() => setIsSummaryModalOpen(true)} onToast={showToast} allStreamers={allStreamers} onJumpToStreamer={handleJumpToStreamer} />
         )}
-        {currentTab === 'synergy' && <SynergyTab stats={stats} matches={matches} />}
+        {currentTab === 'synergy' && <SynergyTab stats={stats} matches={matches} onJumpToStreamer={handleJumpToStreamer} />}
         {currentTab === 'journal' && (
           <JournalTab
-            stats={stats}
-            matches={matches}
-            onAddMatch={handleAddMatch}
-            onUpdateMatch={handleUpdateMatch}
-            onDeleteMatch={handleDeleteMatch}
-            isAdmin={isAdmin}
-            onAdminLoginSuccess={handleAdminLoginSuccess}
-            onToast={showToast}
-            allStreamers={allStreamers}
-            allChampions={allChampions}
+            stats={stats} matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onDeleteMatch={handleDeleteMatch}
+            isAdmin={isAdmin} onAdminLoginSuccess={handleAdminLoginSuccess} onToast={showToast}
+            allStreamers={allStreamers} allChampions={allChampions}
+            targetStreamer={targetStreamer} targetMatchId={targetMatchId} targetStreamerRole={targetStreamerRole}
+            onJumpToStreamer={handleJumpToStreamer}
           />
         )}
-        {currentTab === 'rolland' && (
-          <RollandTab onToast={showToast} allStreamers={allStreamers} />
-        )}
+        {currentTab === 'rolland' && <RollandTab onToast={showToast} allStreamers={allStreamers} />}
       </main>
-      <SummaryModal
-        stats={stats}
-        isOpen={isSummaryModalOpen}
-        onClose={() => setIsSummaryModalOpen(false)}
-      />
-      <AdminLoginModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
-        onSuccess={handleAdminLoginSuccess}
-        onToast={showToast}
-      />
+      <SummaryModal stats={stats} isOpen={isSummaryModalOpen} onClose={() => setIsSummaryModalOpen(false)} />
+      <AdminLoginModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} onSuccess={handleAdminLoginSuccess} onToast={showToast} />
       <Footer totalMatches={matches.length} />
     </div>
   );
