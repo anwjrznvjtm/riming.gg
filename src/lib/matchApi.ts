@@ -18,93 +18,93 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
-export async function fetchAllMatchesFromWorker() {
+export async function fetchAllMatchesFromWorker(): Promise<{ matches: Match[]; source?: string; error?: string }> {
   try {
-    const res = await fetchWithTimeout(WORKER_BASE_URL, { method: 'GET', headers: { Accept: 'application/json' } });
+    const res = await fetchWithTimeout(WORKER_BASE_URL, { 
+      method: 'GET', 
+      headers: { Accept: 'application/json' },
+      mode: 'cors'
+    });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      console.error('Worker GET failed:', res.status, text);
-      return { matches: [], source: 'worker', error: `Cloudflare ${res.status}: ${text.slice(0,200)}` };
+      console.error('GET failed', res.status, text);
+      return { matches: [], source: 'worker', error: `HTTP ${res.status}` };
     }
     const data = await res.json();
     const rawList = Array.isArray(data) ? data : data?.matches || data?.data || [];
     if (Array.isArray(rawList)) {
       const normalized = rawList.map((m: any) => normalizeMatch(m));
-      try {
-        localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(normalized));
-      } catch {}
       return { matches: normalized, source: 'worker' };
     }
     return { matches: [], source: 'worker' };
   } catch (err: any) {
-    console.error('fetchAllMatches error:', err);
-    return { matches: [], source: 'worker', error: err?.message || 'network error' };
+    console.error('fetchAll error', err);
+    return { matches: [], source: 'worker', error: err?.message };
   }
 }
 
 export async function createMatchOnWorker(match: Match) {
-  const normalized = normalizeMatch(match);
   try {
     const res = await fetchWithTimeout(WORKER_BASE_URL, { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(normalized) 
+      body: JSON.stringify(normalizeMatch(match)),
+      mode: 'cors'
     });
     const text = await res.text();
     if (!res.ok) {
-      console.error('POST failed:', res.status, text);
-      return { success: false, error: `save fail ${res.status}: ${text.slice(0,200)}` };
+      console.error('POST failed', res.status, text);
+      return { success: false, error: text.slice(0,200) };
     }
-    let data: any = {};
-    try { data = JSON.parse(text); } catch {}
-    if (data?.success === false) return { success: false, error: data?.error || 'save fail' };
-    return { success: true, match: normalized };
+    return { success: true, match };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'local only' };
+    console.error('create error', err);
+    return { success: false, error: err?.message };
   }
 }
 
 export async function updateMatchOnWorker(match: Match) {
-  const normalized = normalizeMatch(match);
   try {
     const res = await fetchWithTimeout(WORKER_BASE_URL, { 
       method: 'PUT', 
       headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(normalized) 
+      body: JSON.stringify(normalizeMatch(match)),
+      mode: 'cors'
     });
     const text = await res.text();
     if (!res.ok) {
-      console.error('PUT failed:', res.status, text);
-      return { success: false, error: `update fail ${res.status}: ${text.slice(0,200)}` };
+      console.error('PUT failed', res.status, text);
+      return { success: false, error: text.slice(0,200) };
     }
-    let data: any = {};
-    try { data = JSON.parse(text); } catch {}
-    if (data?.success === false) return { success: false, error: data?.error || 'update fail' };
-    return { success: true, match: normalized };
+    return { success: true, match };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'network error' };
+    return { success: false, error: err?.message };
   }
 }
 
 export async function deleteMatchOnWorker(id: string) {
   try {
+    // Cloudflare Worker가 ?id= 와 body 둘 다 지원하도록 두 가지 방법 시도
     const targetUrl = `${WORKER_BASE_URL}?id=${encodeURIComponent(id)}`;
-    const res = await fetchWithTimeout(targetUrl, { method: 'DELETE' });
+    const res = await fetchWithTimeout(targetUrl, { 
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+      mode: 'cors'
+    });
     const text = await res.text();
+    console.log('DELETE response', res.status, text);
     if (!res.ok) {
-      console.error('DELETE failed:', res.status, text);
-      return { success: false, id, error: `delete fail ${res.status}: ${text.slice(0,200)}` };
+      return { success: false, id, error: text.slice(0,200) };
     }
-    let data: any = {};
-    try { data = JSON.parse(text); } catch {}
-    if (data?.success === true || res.status === 200) return { success: true, id };
-    return { success: false, id, error: data?.error || 'local delete only' };
+    return { success: true, id };
   } catch (err: any) {
-    return { success: false, id, error: err?.message || 'local delete only' };
+    console.error('delete error', err);
+    return { success: false, id, error: err?.message };
   }
 }
 
 export const fetchAllMatchesFromApi = fetchAllMatchesFromWorker;
 export const createMatchOnApi = createMatchOnWorker;
-export const updateMatchOnApi = async (match: Match, _all?: Match[]) => updateMatchOnWorker(match);
-export const deleteMatchOnApi = async (id: string, _remaining?: Match[]) => deleteMatchOnWorker(id);
+export const updateMatchOnApi = async (match: Match) => updateMatchOnWorker(match);
+export const deleteMatchOnApi = async (id: string) => deleteMatchOnWorker(id);
