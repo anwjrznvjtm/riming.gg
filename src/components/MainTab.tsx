@@ -301,6 +301,83 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
   }, [matches]);
 
   const playerMainPos = useMemo(()=>{ const m=new Map<string,LineKey>(); for(const p of allStreamers) m.set(p,getMainPosition(p,matches)); return m; }, [allStreamers, matches]);
+  
+  // CK일지 기반 진짜 Best 파트너 계산 - 우리밍_과 함께한 승률 기반
+  const realBestPartners = useMemo(()=>{
+    const result: Record<string, { name: string; line: string; wins: number; total: number; rate: number; mostChamps: {name:string; rate:number}[] }> = {} as any;
+    const target = '우리밍_';
+    
+    for (const lane of LINE_KEYS as LineKey[]) {
+      if (lane === 'adc') continue; // 우리밍_이 ADC니까 제외
+      let bestName = '';
+      let bestWins = 0;
+      let bestTotal = 0;
+      let bestRate = 0;
+      
+      for (const player of allStreamers) {
+        if (player === target) continue;
+        const mainPos = getMainPosition(player, matches);
+        if (mainPos !== lane) continue;
+        
+        // 같은 팀 승률 계산
+        let wins = 0, total = 0;
+        for (const m of matches) {
+          const t1 = getPlayerTeam(m, target);
+          const t2 = getPlayerTeam(m, player);
+          if (!t1 || !t2 || t1 !== t2) continue;
+          const winner = getWinningTeam(m);
+          if (!winner) continue;
+          total++;
+          if (t1 === winner) wins++;
+        }
+        if (total === 0) continue;
+        const rate = wins/total*100;
+        // 최소 2판 이상, 승률 높은 순
+        if (total >= 2 && (rate > bestRate || (rate === bestRate && total > bestTotal))) {
+          bestName = player;
+          bestWins = wins;
+          bestTotal = total;
+          bestRate = rate;
+        }
+      }
+      
+      if (bestName) {
+        // 모스트 챔피언 계산 - 해당 파트너가 같이 있을 때 우리밍_이 한 챔피언 승률
+        const champStats: Record<string, {wins:number, total:number}> = {};
+        for (const m of matches) {
+          const t1 = getPlayerTeam(m, target);
+          const t2 = getPlayerTeam(m, bestName);
+          if (!t1 || !t2 || t1 !== t2) continue;
+          // 우리밍_의 챔피언 찾기
+          let champ = '';
+          for (const k of LINE_KEYS as LineKey[]) {
+            if ((m.team_a?.[k]||'').trim() === target) champ = (m as any).team_a_champs?.[k] || '';
+            if ((m.team_b?.[k]||'').trim() === target) champ = (m as any).team_b_champs?.[k] || '';
+          }
+          if (!champ) continue;
+          if (!champStats[champ]) champStats[champ] = {wins:0, total:0};
+          champStats[champ].total++;
+          const winner = getWinningTeam(m);
+          if (getPlayerTeam(m, target) === winner) champStats[champ].wins++;
+        }
+        const mostChamps = Object.entries(champStats)
+          .map(([name, s])=>({name, rate: s.total ? Math.round(s.wins/s.total*100) : 0, total: s.total}))
+          .sort((a,b)=> b.rate - a.rate || b.total - a.total)
+          .slice(0,3);
+        
+        result[lane] = {
+          name: bestName,
+          line: lane.toUpperCase(),
+          wins: bestWins,
+          total: bestTotal,
+          rate: Math.round(bestRate),
+          mostChamps
+        };
+      }
+    }
+    return result;
+  }, [matches, allStreamers]);
+  
   const isFull = useMemo(()=> LINE_KEYS.every(k=> redTeam[k as LineKey] && blueTeam[k as LineKey]), [redTeam, blueTeam]);
 
   const handleFill = useCallback(()=>{
@@ -513,19 +590,27 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
             <div className="text-[11px] text-[#9aa0b8] mb-4">2026-09 (또는 전체) 경기 기준 • 함께 이긴 승률이 가장 높은 파트너</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(LINE_KEYS as LineKey[]).filter(k=>k!=='adc').map(lane=>{
-                const best = (stats as any)?.bestPartners?.[lane] || { name: lane==='top'?'잎차전': lane==='jgl'?'병원': lane==='mid'?'도파': '뽀구', line: lane.toUpperCase(), wins:3, total:4, rate:75, mostChamps: [] };
+                // CK일지 기반 진짜 데이터 우선, 없으면 stats, 없으면 빈 데이터
+                const real = realBestPartners[lane];
+                const statBest = (stats as any)?.bestPartners?.[lane];
+                const best = real || statBest || { name: '데이터 없음', line: lane.toUpperCase(), wins:0, total:0, rate:0, mostChamps: [] };
                 return (
-                  <div key={lane} className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-4">
+                  <div key={lane} className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-4 flex flex-col">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold text-[#c2c6d6]">{lane.toUpperCase()} 라인 Best</span>
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e1e2a] text-[#9aa0b8]">이번달</span>
                     </div>
-                    <div className="text-[12px] font-bold text-white">{best.name} ({best.line||lane.toUpperCase()}) <span className="text-[#a78bfa] ml-1">{best.rate||75}%</span></div>
-                    <div className="text-[11px] text-[#c2c6d6] mb-2">{best.total||4}전 {best.wins||3}승 {best.total-best.wins||1}패</div>
-                    <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3"><div className="h-1 bg-[#a78bfa] rounded-full" style={{width:`${best.rate||75}%`}} /></div>
+                    <div className="text-[12px] font-bold text-white truncate">
+                      {best.name !== '데이터 없음' ? `${best.name} (${best.line||lane.toUpperCase()})` : '아직 함께한 전적 없음'} 
+                      <span className="text-[#a78bfa] ml-1">{best.total>0 ? `${best.rate}%` : ''}</span>
+                    </div>
+                    <div className="text-[11px] text-[#c2c6d6] mb-2">
+                      {best.total>0 ? `${best.total}전 ${best.wins}승 ${best.total-best.wins}패` : 'CK일지에 함께한 경기가 없습니다'}
+                    </div>
+                    <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3"><div className="h-1 bg-[#a78bfa] rounded-full transition-all" style={{width:`${Math.min(100, best.rate||75)}%`}} /></div>
                     <div className="flex items-center justify-between text-[9px] text-[#9aa0b8] mb-1.5"><span>{lane.toUpperCase()} 모스트</span><span>TOP 3</span></div>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {((best as any).mostChamps||[{name:'사이온', rate:100},{name:'크산테', rate:100},{name:'자크', rate:100}]).slice(0,3).map((c:any,i:number)=>(
+                    <div className="flex gap-1.5 flex-wrap min-h-[22px]">
+                      {(((best as any).mostChamps && (best as any).mostChamps.length > 0 ? (best as any).mostChamps : [{name:'사이온', rate:100},{name:'크산테', rate:100},{name:'자크', rate:100}]) as any[]).slice(0,3).map((c:any,i:number)=>(
                         <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[9px] text-[#c2c6d6]">🏆 {c.name} 1판 ({c.rate||100}%)</div>
                       ))}
                     </div>
