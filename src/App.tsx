@@ -59,11 +59,22 @@ export default function App() {
   });
 
   const [currentTab, setCurrentTab] = useState<string>('main');
+  const [targetStreamer, setTargetStreamer] = useState<string | null>(null);
+  const [targetMatchId, setTargetMatchId] = useState<string | null>(null);
+  const [targetStreamerRole, setTargetStreamerRole] = useState<'all' | 'ally' | 'enemy'>('all');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>('');
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+
+  // 스트리머 또는 경기 ID 및 아군/적팀 팀 역할(Team Check)을 받아서 CK 일지 탭으로 전환하고 해당 경기 위치로 스크롤 점프
+  const handleJumpToStreamer = useCallback((streamerName: string, matchId?: string, teamRole: 'all' | 'ally' | 'enemy' = 'all') => {
+    setTargetStreamer(streamerName);
+    setTargetMatchId(matchId || null);
+    setTargetStreamerRole(teamRole);
+    setCurrentTab('journal');
+  }, []);
 
   const [isBgmPlaying, setIsBgmPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -453,8 +464,7 @@ export default function App() {
       } else {
         showToast('경기 등록 완료 (로컬 캐시 보관됨)');
       }
-      // FIX v9: 저장 성공 시 즉시 다시 GET해서 덮어쓰면 D1 캐시/전파 지연으로 옛날 데이터로 돌아오는 현상 방지 - 로컬 상태 유지
-      // setTimeout(() => syncFromApi(true), 1500);
+      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] POST match failed:', err);
     }
@@ -472,8 +482,7 @@ export default function App() {
         showToast('경기 수정 완료 (로컬 캐시 보관됨) - ' + (res.error || ''));
       }
       // FIX: 즉시 동기화하면 D1 반영 전 옛날 데이터로 덮어씌워져서 다시 블루로 돌아오는 현상 방지
-      // FIX v9: 저장 성공 시 즉시 다시 GET해서 덮어쓰면 D1 캐시/전파 지연으로 옛날 데이터로 돌아오는 현상 방지 - 로컬 상태 유지
-      // setTimeout(() => syncFromApi(true), 1500);
+      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] PUT match failed:', err);
       showToast('로컬에 수정됨 (클라우드 동기화 실패)');
@@ -490,8 +499,7 @@ export default function App() {
       } else {
         showToast('경기 삭제 완료 (로컬 캐시 보관됨)');
       }
-      // FIX v9: 저장 성공 시 즉시 다시 GET해서 덮어쓰면 D1 캐시/전파 지연으로 옛날 데이터로 돌아오는 현상 방지 - 로컬 상태 유지
-      // setTimeout(() => syncFromApi(true), 1500);
+      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] DELETE match failed:', err);
     }
@@ -550,6 +558,7 @@ export default function App() {
         onTabChange={setCurrentTab}
         matches={matches}
         allStreamers={allStreamers}
+        onSelectStreamer={handleJumpToStreamer}
         isAdmin={isAdmin}
         onLoginClick={() => setIsAdminModalOpen(true)}
         onLogoutClick={handleAdminLogout}
@@ -572,9 +581,16 @@ export default function App() {
             onOpenSummaryModal={() => setIsSummaryModalOpen(true)}
             onToast={showToast}
             allStreamers={allStreamers}
+            onJumpToStreamer={handleJumpToStreamer}
           />
         )}
-        {currentTab === 'synergy' && <SynergyTab stats={stats} matches={matches} />}
+        {currentTab === 'synergy' && (
+          <SynergyTab
+            stats={stats}
+            matches={matches}
+            onJumpToStreamer={handleJumpToStreamer}
+          />
+        )}
         {currentTab === 'journal' && (
           <JournalTab
             stats={stats}
@@ -587,6 +603,10 @@ export default function App() {
             onToast={showToast}
             allStreamers={allStreamers}
             allChampions={allChampions}
+            targetStreamer={targetStreamer}
+            targetMatchId={targetMatchId}
+            targetStreamerRole={targetStreamerRole}
+            onJumpToStreamer={handleJumpToStreamer}
           />
         )}
         {currentTab === 'rolland' && (
@@ -605,30 +625,6 @@ export default function App() {
         onToast={showToast}
       />
       <Footer totalMatches={matches.length} />
-
-      {/* FIX v12: 모바일 최종 - 헤더 메뉴 절대 안 사라지게 */}
-      <style>{`
-        html, body {
-          overflow-x: hidden;
-          max-width: 100vw;
-        }
-        * { box-sizing: border-box; }
-        @media (max-width: 768px) {
-          main {
-            padding-left: 12px !important;
-            padding-right: 12px !important;
-            overflow-x: hidden;
-          }
-          .grid {
-            grid-template-columns: 1fr !important;
-          }
-          /* 카드가 화면 밖으로 나가지 않게 */
-          div[class*="rounded-"] {
-            max-width: 100%;
-          }
-        }
-      `}</style>
-
     </div>
   );
 }
