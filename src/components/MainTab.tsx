@@ -402,8 +402,12 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
 
   const handleOptimal = useCallback(()=>{
     if(!isFull){ onToast('10명이 모두 채워져야 재배치가 가능합니다.'); return; }
-    // 32가지 조합 중 최적
-    let best:any=null, bestDiff=Infinity;
+    // 32가지 조합 중 우리밍_이 속한 팀 승률이 가장 높은 조합 찾기
+    let best:any=null;
+    let bestWoorimingWin = -1;
+    let bestAvgSynergy = -1;
+    const targetPlayer = '우리밍_';
+    
     for (let mask=0; mask < (1<<LINE_KEYS.length); mask++) {
       const red:TeamRoster={top:'',jgl:'',mid:'',adc:'',sup:''};
       const blue:TeamRoster={top:'',jgl:'',mid:'',adc:'',sup:''};
@@ -413,10 +417,21 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
         if ((mask & (1<<i))===0) { red[p]=a; blue[p]=b; } else { red[p]=b; blue[p]=a; }
       }
       const score = calcTeamScores(red, blue, matches, stats);
-      const diff = Math.abs(score.red - score.blue);
+      
+      // 우리밍_이 어디에 있는지 찾기
+      const woorimingInRed = Object.values(red).some(v => v.trim() === targetPlayer);
+      const woorimingInBlue = Object.values(blue).some(v => v.trim() === targetPlayer);
+      if (!woorimingInRed && !woorimingInBlue) continue; // 우리밍_이 없는 조합은 제외
+      
+      const woorimingWin = woorimingInRed ? score.red : score.blue;
       const avgSynergy = (score.detail.redSynergy + score.detail.blueSynergy)/2;
-      const finalScore = diff - avgSynergy*0.05; // 밸런스 좋고 시너지 높을수록 좋음
-      if (finalScore < bestDiff) { bestDiff=finalScore; best={red, blue, score}; }
+      
+      // 1순위: 우리밍_ 팀 승률 최대, 2순위: 시너지 높을수록
+      if (woorimingWin > bestWoorimingWin || (Math.abs(woorimingWin - bestWoorimingWin) < 0.01 && avgSynergy > bestAvgSynergy)) {
+        bestWoorimingWin = woorimingWin;
+        bestAvgSynergy = avgSynergy;
+        best={red, blue, score, woorimingInRed, woorimingWin};
+      }
     }
     if (best) {
       setRedTeam(best.red);
@@ -424,7 +439,8 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
       setWinRate(best.score);
       setSynergyDetail(best.score);
       setShowSynergyModal(true);
-      onToast(`최적 재배치 완료! Red ${best.score.red.toFixed(1)}% vs Blue ${best.score.blue.toFixed(1)}% - 50/50에 가깝게 밸런스 맞춤`);
+      const teamName = best.woorimingInRed ? 'Red' : 'Blue';
+      onToast(`최적 재배치 완료! ${teamName}팀(우리밍_) ${best.woorimingWin.toFixed(1)}% - 이기는 팀으로 배치`);
     }
   }, [isFull, redTeam, blueTeam, matches, stats, onToast]);
 
