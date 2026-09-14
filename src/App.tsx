@@ -38,7 +38,6 @@ declare global {
 export default function App() {
   const [matches, setMatches] = useState<Match[]>(() => {
     try {
-      // Purge previous mock data so user starts with a clean slate
       const alreadyPurged = localStorage.getItem('riming_mock_purged_v1');
       if (!alreadyPurged) {
         localStorage.removeItem(STORAGE_KEY_MATCHES);
@@ -66,7 +65,6 @@ export default function App() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
 
-  // BGM audio state with Fisher-Yates shuffled queue
   const [isBgmPlaying, setIsBgmPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [bgmVolume, setBgmVolume] = useState<number>(35);
@@ -76,7 +74,6 @@ export default function App() {
   const [currentTrack, setCurrentTrack] = useState<BgmTrack>(BGM_PLAYLIST[0]);
   const isQueueInitRef = useRef<boolean>(false);
 
-  // Fisher-Yates 셔플 큐 초기화 (모든 곡이 1회씩 재생된 후 다시 셔플)
   if (!isQueueInitRef.current) {
     const initialQueue = createBgmQueue(BGM_PLAYLIST);
     const first = initialQueue.shift() || BGM_PLAYLIST[0];
@@ -89,9 +86,6 @@ export default function App() {
   const isUserPausedRef = useRef<boolean>(false);
   const hasInteractedRef = useRef<boolean>(false);
 
-  // Fisher-Yates 셔플 재생 큐를 활용한 다음 곡 재생
-  // - 큐에 남은 곡이 없을 경우(모든 곡이 1회 재생 완료됨), 전체 목록을 다시 Fisher-Yates로 셔플
-  // - 직전에 재생된 마지막 곡(lastTrack)과 새 큐의 첫 번째 곡이 동일하지 않도록 방지
   const playNextTrack = (isAuto = false) => {
     hasInteractedRef.current = true;
     const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
@@ -137,7 +131,6 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  // Synchronize matches from Cloudflare Worker API with automatic fallback
   const syncFromApi = useCallback(async (isSilent = false) => {
     if (!isSilent) setSyncStatus('syncing');
     try {
@@ -153,26 +146,20 @@ export default function App() {
     }
   }, []);
 
-  // Multi-device real-time sync (initial load, 20s interval, and tab focus)
   useEffect(() => {
     syncFromApi(false);
-
-    // Background sync every 20 seconds for cross-device updates
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncFromApi(true);
       }
     }, 20000);
-
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         syncFromApi(true);
       }
     };
-
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
-
     return () => {
       clearInterval(interval);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -180,7 +167,6 @@ export default function App() {
     };
   }, [syncFromApi]);
 
-  // Save matches to localStorage as reliable local cache
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(matches));
@@ -190,7 +176,6 @@ export default function App() {
     }
   }, [matches]);
 
-  // Check Admin session
   useEffect(() => {
     try {
       const sess = sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -202,9 +187,7 @@ export default function App() {
           sessionStorage.removeItem(ADMIN_SESSION_KEY);
         }
       }
-    } catch (e) {
-      // Ignore
-    }
+    } catch (e) {}
   }, []);
 
   const handleAdminLoginSuccess = () => {
@@ -219,13 +202,10 @@ export default function App() {
     showToast('관리자에서 로그아웃되었습니다.');
   };
 
-  // YouTube BGM initialization & Persistent player setup
   useEffect(() => {
     let isMounted = true;
-
     const setupPlayer = () => {
       if (!isMounted) return;
-      // If already initialized globally, reuse the instance
       if ((window as any).__ytBgmPlayer) {
         ytPlayerRef.current = (window as any).__ytBgmPlayer;
         return;
@@ -233,7 +213,6 @@ export default function App() {
       if (!window.YT || !window.YT.Player) return;
       const el = document.getElementById('youtube-bgm-iframe-target');
       if (!el) return;
-
       try {
         const player = new window.YT.Player('youtube-bgm-iframe-target', {
           videoId: currentTrackRef.current.videoId,
@@ -262,7 +241,6 @@ export default function App() {
             },
             onStateChange: (event: any) => {
               if (!isMounted) return;
-              // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
               if (event.data === 1) {
                 setIsBgmPlaying(true);
               } else if (event.data === 2) {
@@ -283,14 +261,12 @@ export default function App() {
             },
           },
         });
-
         ytPlayerRef.current = player;
         (window as any).__ytBgmPlayer = player;
       } catch (e) {
         console.warn('Error creating YT.Player', e);
       }
     };
-
     if (window.YT && window.YT.Player) {
       setupPlayer();
     } else {
@@ -305,32 +281,25 @@ export default function App() {
           if (isMounted) setupPlayer();
         }
       }, 200);
-
       return () => {
         isMounted = false;
         clearInterval(interval);
       };
     }
-
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Unlock browser audio restrictions on user's first click or touch only
   useEffect(() => {
     if (hasInteractedRef.current) return;
-
     const handleFirstGesture = () => {
       if (hasInteractedRef.current) return;
       hasInteractedRef.current = true;
-
       window.removeEventListener('click', handleFirstGesture);
       window.removeEventListener('touchstart', handleFirstGesture);
       window.removeEventListener('keydown', handleFirstGesture);
-
       if (isUserPausedRef.current) return;
-
       const player = ytPlayerRef.current || (window as any).__ytBgmPlayer;
       if (player && typeof player.playVideo === 'function') {
         try {
@@ -345,11 +314,9 @@ export default function App() {
         } catch (e) {}
       }
     };
-
     window.addEventListener('click', handleFirstGesture, { passive: true });
     window.addEventListener('touchstart', handleFirstGesture, { passive: true });
     window.addEventListener('keydown', handleFirstGesture, { passive: true });
-
     return () => {
       window.removeEventListener('click', handleFirstGesture);
       window.removeEventListener('touchstart', handleFirstGesture);
@@ -439,10 +406,8 @@ export default function App() {
     } catch (e) {}
   };
 
-  // Compute stats from current matches
   const stats = useMemo(() => calculateStats(matches), [matches]);
 
-  // Aggregate all streamers purely from registered CK journal matches (+ '우리밍_')
   const allStreamers = useMemo(() => {
     const set = new Set<string>();
     set.add('우리밍_');
@@ -477,20 +442,18 @@ export default function App() {
     return Array.from(set).filter(Boolean).sort();
   }, [matches]);
 
-  // Match mutations with schema normalization & Cloudflare Worker API communication
+  // FIXED: Match mutations - delayed sync to prevent reverting to old D1 data
   const handleAddMatch = async (newMatch: Match) => {
     const normalized = normalizeMatch(newMatch);
-    // Optimistic UI update
     setMatches((prev) => [normalized, ...prev]);
-
     try {
       const res = await createMatchOnApi(normalized);
       if (res.success) {
-        showToast('경기 등록 완료 (Worker 클라우드 저장 ☁️)');
+        showToast('경기 등록 완료 (Worker 클라우드 저장 ☁)');
       } else {
         showToast('경기 등록 완료 (로컬 캐시 보관됨)');
       }
-      syncFromApi(true);
+      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] POST match failed:', err);
     }
@@ -500,32 +463,32 @@ export default function App() {
     const normalized = normalizeMatch(updatedMatch);
     const updatedList = matches.map((m) => (String(m.id) === String(normalized.id) ? normalized : m));
     setMatches(updatedList);
-
     try {
       const res = await updateMatchOnApi(normalized, matches);
       if (res.success) {
-        showToast('경기 수정 완료 (Worker 클라우드 반영 ☁️)');
+        showToast('경기 수정 완료 (Worker 클라우드 반영 ☁)');
       } else {
-        showToast('경기 수정 완료 (로컬 캐시 보관됨)');
+        showToast('경기 수정 완료 (로컬 캐시 보관됨) - ' + (res.error || ''));
       }
-      syncFromApi(true);
+      // FIX: 즉시 동기화하면 D1 반영 전 옛날 데이터로 덮어씌워져서 다시 블루로 돌아오는 현상 방지
+      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] PUT match failed:', err);
+      showToast('로컬에 수정됨 (클라우드 동기화 실패)');
     }
   };
 
   const handleDeleteMatch = async (id: string) => {
     const remaining = matches.filter((m) => String(m.id) !== String(id));
     setMatches(remaining);
-
     try {
       const res = await deleteMatchOnApi(id, remaining);
       if (res.success) {
-        showToast('경기 삭제 완료 (Worker 클라우드 반영 ☁️)');
+        showToast('경기 삭제 완료 (Worker 클라우드 반영 ☁)');
       } else {
         showToast('경기 삭제 완료 (로컬 캐시 보관됨)');
       }
-      syncFromApi(true);
+      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] DELETE match failed:', err);
     }
@@ -533,7 +496,6 @@ export default function App() {
 
   const handleImportMatches = (importedList: Match[], mode: 'replace' | 'merge') => {
     const cleanList = importedList.map((m) => normalizeMatch(m));
-
     if (mode === 'replace') {
       setMatches(cleanList);
       showToast(`전적 데이터 전체 복원 완료! (총 ${cleanList.length}경기)`);
@@ -548,8 +510,6 @@ export default function App() {
         return combined;
       });
     }
-
-    // Cloudflare D1 실시간 일괄 동기화
     fetch('/api/matches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -561,35 +521,27 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#08080c] text-[#e6e6ef] selection:bg-[#8b5cf6]/30 flex flex-col justify-between">
-      {/* Background YouTube Host */}
       <div
         className="fixed bottom-0 right-0 w-[240px] h-[135px] opacity-[0.005] overflow-hidden pointer-events-none -z-50"
         aria-hidden="true"
       >
         <div id="youtube-bgm-iframe-target" className="w-full h-full" />
       </div>
-
-      {/* Datalists for autocompletion */}
       <datalist id="players-datalist">
         {allStreamers.map((name) => (
           <option key={name} value={name} />
         ))}
       </datalist>
-
       <datalist id="champs-datalist">
         {allChampions.map((champ) => (
           <option key={champ} value={champ} />
         ))}
       </datalist>
-
-      {/* Floating Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] bg-[#1e1e2a] border border-[#2a2a3a] text-white px-4 py-2 rounded-full text-[12px] shadow-2xl animate-[fadeIn_0.2s] max-w-[90vw] text-center font-medium">
           {toastMessage}
         </div>
       )}
-
-      {/* App Header */}
       <Header
         currentTab={currentTab}
         onTabChange={setCurrentTab}
@@ -609,8 +561,6 @@ export default function App() {
         bgmVolume={bgmVolume}
         onChangeVolume={handleVolumeChange}
       />
-
-      {/* Main Content Area */}
       <main className="max-w-[1100px] w-full mx-auto px-4 md:px-6 py-6 md:py-10 flex-1">
         {currentTab === 'main' && (
           <MainTab
@@ -621,9 +571,7 @@ export default function App() {
             allStreamers={allStreamers}
           />
         )}
-
         {currentTab === 'synergy' && <SynergyTab stats={stats} matches={matches} />}
-
         {currentTab === 'journal' && (
           <JournalTab
             stats={stats}
@@ -638,27 +586,21 @@ export default function App() {
             allChampions={allChampions}
           />
         )}
-
         {currentTab === 'rolland' && (
           <RollandTab onToast={showToast} allStreamers={allStreamers} />
         )}
       </main>
-
-      {/* Modals */}
       <SummaryModal
         stats={stats}
         isOpen={isSummaryModalOpen}
         onClose={() => setIsSummaryModalOpen(false)}
       />
-
       <AdminLoginModal
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
         onSuccess={handleAdminLoginSuccess}
         onToast={showToast}
       />
-
-      {/* Footer */}
       <Footer totalMatches={matches.length} />
     </div>
   );
