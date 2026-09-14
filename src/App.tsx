@@ -59,22 +59,11 @@ export default function App() {
   });
 
   const [currentTab, setCurrentTab] = useState<string>('main');
-  const [targetStreamer, setTargetStreamer] = useState<string | null>(null);
-  const [targetMatchId, setTargetMatchId] = useState<string | null>(null);
-  const [targetStreamerRole, setTargetStreamerRole] = useState<'all' | 'ally' | 'enemy'>('all');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>('');
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
-
-  // 스트리머 또는 경기 ID 및 아군/적팀 팀 역할(Team Check)을 받아서 CK 일지 탭으로 전환하고 해당 경기 위치로 스크롤 점프
-  const handleJumpToStreamer = useCallback((streamerName: string, matchId?: string, teamRole: 'all' | 'ally' | 'enemy' = 'all') => {
-    setTargetStreamer(streamerName);
-    setTargetMatchId(matchId || null);
-    setTargetStreamerRole(teamRole);
-    setCurrentTab('journal');
-  }, []);
 
   const [isBgmPlaying, setIsBgmPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -490,18 +479,29 @@ export default function App() {
   };
 
   const handleDeleteMatch = async (id: string) => {
+    // 로컬에서 즉시 삭제
     const remaining = matches.filter((m) => String(m.id) !== String(id));
     setMatches(remaining);
+    // 로컬 스토리지 즉시 반영
+    try {
+      localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(remaining));
+      localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(remaining));
+    } catch {}
+    
     try {
       const res = await deleteMatchOnApi(id, remaining);
       if (res.success) {
-        showToast('경기 삭제 완료 (Worker 클라우드 반영 ☁)');
+        showToast('경기 삭제 완료');
+        // 성공했을 때만 2초 후 동기화 (D1 반영 기다림) - 실패하면 동기화 안 해서 되살아나는 버그 방지
+        setTimeout(() => syncFromApi(true), 2000);
       } else {
-        showToast('경기 삭제 완료 (로컬 캐시 보관됨)');
+        showToast('경기 삭제 완료 (로컬)');
+        // 실패하면 동기화 안 함 - 삭제된 게 다시 생기는 버그 원인이었음
       }
-      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] DELETE match failed:', err);
+      showToast('경기 삭제 완료 (로컬)');
+      // 에러 시에도 동기화 안 함
     }
   };
 
@@ -558,7 +558,6 @@ export default function App() {
         onTabChange={setCurrentTab}
         matches={matches}
         allStreamers={allStreamers}
-        onSelectStreamer={handleJumpToStreamer}
         isAdmin={isAdmin}
         onLoginClick={() => setIsAdminModalOpen(true)}
         onLogoutClick={handleAdminLogout}
@@ -581,16 +580,9 @@ export default function App() {
             onOpenSummaryModal={() => setIsSummaryModalOpen(true)}
             onToast={showToast}
             allStreamers={allStreamers}
-            onJumpToStreamer={handleJumpToStreamer}
           />
         )}
-        {currentTab === 'synergy' && (
-          <SynergyTab
-            stats={stats}
-            matches={matches}
-            onJumpToStreamer={handleJumpToStreamer}
-          />
-        )}
+        {currentTab === 'synergy' && <SynergyTab stats={stats} matches={matches} />}
         {currentTab === 'journal' && (
           <JournalTab
             stats={stats}
@@ -603,10 +595,6 @@ export default function App() {
             onToast={showToast}
             allStreamers={allStreamers}
             allChampions={allChampions}
-            targetStreamer={targetStreamer}
-            targetMatchId={targetMatchId}
-            targetStreamerRole={targetStreamerRole}
-            onJumpToStreamer={handleJumpToStreamer}
           />
         )}
         {currentTab === 'rolland' && (
