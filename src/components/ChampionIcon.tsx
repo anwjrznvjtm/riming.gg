@@ -4,7 +4,7 @@
  * 173번째 챔피언 '로크(Locke)' 포함
  */
 
-const DDRAGON_VERSION = "14.23.1";
+const DDRAGON_VERSION = "16.11.1"; // 173번째 로크 포함 최신 버전, 없으면 14.23.1로 fallback 됨
 const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
 
 // 173개 전체 매핑 (한글 -> 영문 Data Dragon 파일명)
