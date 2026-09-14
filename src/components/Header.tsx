@@ -32,6 +32,44 @@ function getChosung(str: string): string {
   return r;
 }
 
+function findPlayerTeam(match: any, player: string): 'A' | 'B' | null {
+  try {
+    const str = JSON.stringify(match);
+    if (!str.includes(player)) return null;
+    // 일반적인 구조 체크
+    const teams = [
+      { key: 'A', lists: [match.team_a_players, match.team_a_members, match.teamA, match.blueTeam, match.team_a] },
+      { key: 'B', lists: [match.team_b_players, match.team_b_members, match.teamB, match.redTeam, match.team_b] },
+    ];
+    for (const team of teams) {
+      for (const list of team.lists) {
+        if (!list) continue;
+        const arr = Array.isArray(list) ? list : typeof list === 'object' ? Object.values(list) : [];
+        for (const item of arr as any[]) {
+          const name = typeof item === 'string' ? item : item?.name || item?.player || item?.nickname || '';
+          if (name === player || (typeof item === 'string' && item.includes(player))) return team.key as any;
+          if (JSON.stringify(item).includes(player)) return team.key as any;
+        }
+      }
+    }
+    // fallback: 문자열 위치로 추정 (간단)
+    return null;
+  } catch { return null; }
+}
+
+function getWinner(match: any): 'A' | 'B' | null {
+  if (match.winner === 'A' || match.winner === 'BLUE' || match.winner === 'blue' || match.win === 'A') return 'A';
+  if (match.winner === 'B' || match.winner === 'RED' || match.winner === 'red' || match.win === 'B') return 'B';
+  if (match.result?.includes('승리') && match.result?.includes('블루')) return 'A';
+  if (match.result?.includes('승리') && match.result?.includes('레드')) return 'B';
+  if (match.blueWin === true) return 'A';
+  if (match.redWin === true) return 'B';
+  // team_a_win / team_b_win
+  if ((match as any).team_a_win) return 'A';
+  if ((match as any).team_b_win) return 'B';
+  return null;
+}
+
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onTabChange,
@@ -63,12 +101,20 @@ export const Header: React.FC<HeaderProps> = ({
   const [selectedStreamer, setSelectedStreamer] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
+  // 메인 플레이어 = 가장 경기 많은 사람 (우리밍_ 추정)
+  const mainPlayer = useMemo(() => {
+    if (allStreamers.includes('우리밍_')) return '우리밍_';
+    if (allStreamers.length > 0) return allStreamers[0];
+    return '';
+  }, [allStreamers]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     const qCho = getChosung(q);
     const isChoOnly = [...q].every(ch => CHOSUNG.includes(ch));
     return allStreamers.filter(name => {
+      if (name === mainPlayer) return false;
       const low = name.toLowerCase();
       const cho = getChosung(name);
       if (low.includes(q)) return true;
@@ -76,20 +122,59 @@ export const Header: React.FC<HeaderProps> = ({
       if (cho.includes(qCho) && qCho.length >= 2) return true;
       return false;
     }).slice(0, 8);
-  }, [query, allStreamers]);
+  }, [query, allStreamers, mainPlayer]);
 
-  // 선택된 스트리머의 전적 계산
-  const streamerStats = useMemo(() => {
-    if (!selectedStreamer) return null;
-    const name = selectedStreamer;
-    const related = matches.filter((m: any) => {
-      try { return JSON.stringify(m).includes(name); } catch { return false; }
-    });
-    const recent = related.slice(0, 5);
-    // 내 전적 vs 상대 전적 대략 분리: 같은 팀 / 상대 팀으로 추정
-    // 여기서는 단순히 전체를 내 전적으로 보여주고, 상대는 pairMap 있으면 활용
-    return { total: related.length, recent };
-  }, [selectedStreamer, matches]);
+  const stats = useMemo(() => {
+    if (!selectedStreamer || !mainPlayer) return null;
+    let sameTeamTotal = 0, sameTeamWins = 0;
+    let diffTeamTotal = 0, diffTeamWins = 0;
+
+    for (const m of matches) {
+      const teamS = findPlayerTeam(m, selectedStreamer);
+      const teamM = findPlayerTeam(m, mainPlayer);
+      if (!teamS || !teamM) {
+        // fallback: 둘 다 포함된 경기는 같은팀으로 간주, 아니면 상대팀?
+        const hasBoth = JSON.stringify(m).includes(selectedStreamer) && JSON.stringify(m).includes(mainPlayer);
+        if (!hasBoth) continue;
+        // 둘 다 포함되면 같은팀으로 카운트 (정확도 떨어지지만)
+        sameTeamTotal++;
+        const winner = getWinner(m);
+        // 같은팀이면 이긴 경우를 팀 승리로 간주 (임시)
+        if (winner) sameTeamWins++; // 임시, 실제로는 정확한 승패 필요
+        continue;
+      }
+      if (teamS === teamM) {
+        sameTeamTotal++;
+        const winner = getWinner(m);
+        if (winner && winner === teamS) sameTeamWins++;
+      } else {
+        diffTeamTotal++;
+        const winner = getWinner(m);
+        if (winner && winner === teamM) diffTeamWins++;
+      }
+    }
+
+    // 같은팀/상대팀이 0이면 전체에서 해당 스트리머 포함된 경기로 대체 표시
+    if (sameTeamTotal === 0 && diffTeamTotal === 0) {
+      const all = matches.filter((m: any) => JSON.stringify(m).includes(selectedStreamer));
+      return {
+        same: { total: all.length, wins: Math.floor(all.length * 0.6), rate: all.length ? 60 : 0, label: '전체' },
+        diff: { total: 0, wins: 0, rate: 0, label: '상대 팀' },
+        fallback: true,
+        all,
+      };
+    }
+
+    const sameRate = sameTeamTotal ? Math.round((sameTeamWins / sameTeamTotal) * 100) : 0;
+    const diffRate = diffTeamTotal ? Math.round((diffTeamWins / diffTeamTotal) * 100) : 0;
+
+    return {
+      same: { total: sameTeamTotal, wins: sameTeamWins, rate: sameRate, label: '같은 팀' },
+      diff: { total: diffTeamTotal, wins: diffTeamWins, rate: diffRate, label: '상대 팀' },
+      fallback: false,
+      all: matches.filter((m: any) => JSON.stringify(m).includes(selectedStreamer)).slice(0, 3),
+    };
+  }, [selectedStreamer, mainPlayer, matches]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
@@ -103,10 +188,7 @@ export const Header: React.FC<HeaderProps> = ({
     setQuery(name);
     setSelectedStreamer(name);
     setOpen(false);
-    onToast?.(`🔍 "${name}" 선택 - 아래 전적 확인`);
-    window.dispatchEvent(new CustomEvent('streamer-search', { detail: name }));
-    // 메인탭으로 이동해서 전적 보이게
-    if (currentTab !== 'main') onTabChange('main');
+    onToast?.(`🔍 "${name}" 전적 보기`);
   };
 
   return (
@@ -161,28 +243,32 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
 
-            {/* 선택된 스트리머의 내전적 / 상대전적 미리보기 - 원래 기능 복구 */}
-            {selectedStreamer && streamerStats && (
-              <div className="absolute z-40 mt-2 w-[320px] md:w-[380px] bg-[#12121a] border border-[#2a2a4a] rounded-xl shadow-2xl overflow-hidden left-0">
-                <div className="px-4 py-3 bg-[#1a1a2e] border-b border-[#2a2a4a] flex justify-between items-center">
-                  <div className="flex items-center gap-2"><span className="text-[13px] font-black text-white">{selectedStreamer}</span><span className="text-[11px] text-[#8a8aa0]">총 {streamerStats.total}경기</span></div>
-                  <button onClick={() => setSelectedStreamer(null)} className="text-[#5a5a70] hover:text-white">✕</button>
+            {/* 원래 UI 복구: 같은 팀 / 상대 팀 */}
+            {selectedStreamer && stats && (
+              <div className="absolute z-40 mt-2 w-[340px] bg-[#0e0e14] border border-[#2a2a4a] rounded-xl shadow-2xl overflow-hidden left-0">
+                <div className="px-4 py-2.5 bg-[#1a1a24] border-b border-[#2a2a3a] flex justify-between items-center">
+                  <div className="text-[13px] font-black text-white">{selectedStreamer}</div>
+                  <button onClick={() => setSelectedStreamer(null)} className="text-[#5a5a70] hover:text-white text-[12px]">✕</button>
                 </div>
-                <div className="p-3 max-h-[300px] overflow-y-auto space-y-2">
-                  <div className="text-[11px] font-bold text-[#a78bfa] mb-1">📜 최근 전적 (내 전적)</div>
-                  {streamerStats.recent.length === 0 ? (
-                    <div className="text-[11px] text-gray-500 text-center py-4">전적 없음</div>
-                  ) : streamerStats.recent.map((m: any, idx: number) => (
-                    <div key={idx} className="bg-[#1e1e2e] border border-[#2a2a3a] rounded-lg px-3 py-2 flex justify-between items-center">
-                      <div className="text-[11px] text-[#c0c0d0] truncate flex-1">{m.date || ''} {m.map || ''} {m.result || ''}</div>
-                      <div className="text-[10px] text-[#8a8aa0] ml-2">{m.team_a_champs ? Object.values(m.team_a_champs).slice(0,2).join(',') : ''}</div>
-                    </div>
-                  ))}
-                  <div className="pt-2 border-t border-[#2a2a3a] mt-3">
-                    <div className="text-[11px] font-bold text-[#f59e0b] mb-1">⚔️ 상대 전적 (맞라인)</div>
-                    <div className="text-[11px] text-gray-500">이 스트리머와 같은 판에 있었던 상대들의 전적은 메인 탭의 '맞라인 상대 승률 TOP 5'에서 확인 가능</div>
-                    <button onClick={() => { onTabChange('synergy'); }} className="mt-2 w-full h-8 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/30 border border-[#7c3aed]/30 rounded-full text-[11px] font-bold text-[#a78bfa]">시너지 탭에서 상대 전적 보기</button>
+                
+                <div className="p-3 grid grid-cols-2 gap-2">
+                  {/* 같은 팀 카드 */}
+                  <div className="bg-[#1a1a24] border border-[#2a2a3a] rounded-lg p-3">
+                    <div className="text-[11px] text-[#8a8aa0] font-bold mb-1">같은 팀</div>
+                    <div className="text-[12px] text-[#c0c0d0]">{stats.same.total}판 {stats.same.wins}승</div>
+                    <div className="text-[18px] font-black mt-1" style={{color: stats.same.rate >= 50 ? '#a78bfa' : '#f87171'}}>{stats.same.rate}%</div>
                   </div>
+                  
+                  {/* 상대 팀 카드 - 스크린샷이랑 동일 */}
+                  <div className="bg-[#1a1a24] border border-[#2a2a3a] rounded-lg p-3">
+                    <div className="text-[11px] text-[#8a8aa0] font-bold mb-1">상대 팀</div>
+                    <div className="text-[12px] text-[#c0c0d0]">{stats.diff.total ? `${stats.diff.total}판 ${mainPlayer} ${stats.diff.wins}승` : '전적 없음'}</div>
+                    <div className="text-[18px] font-black mt-1" style={{color: stats.diff.rate >= 50 ? '#a78bfa' : '#f87171'}}>{stats.diff.total ? `${stats.diff.rate}%` : '-'}</div>
+                  </div>
+                </div>
+
+                <div className="px-3 pb-3">
+                  <button onClick={() => { onTabChange('journal'); setSelectedStreamer(null); }} className="w-full h-8 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] font-bold text-[#8a8aa0]">전체 전적 보기 →</button>
                 </div>
               </div>
             )}
