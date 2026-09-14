@@ -606,75 +606,25 @@ export default function App() {
       />
       <Footer totalMatches={matches.length} />
 
-      {/* FIX v10: 모바일 반응형 - 가로 넘침 방지 + 카드 세로 배치 */}
+      {/* FIX v12: 모바일 최종 - 헤더 메뉴 절대 안 사라지게 */}
       <style>{`
-        /* 전체 가로 스크롤 방지 */
         html, body {
           overflow-x: hidden;
           max-width: 100vw;
         }
-        /* 모든 요소가 화면 밖으로 못 나가게 */
-        * {
-          box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
         @media (max-width: 768px) {
-          /* 메인 컨테이너 패딩 축소 */
           main {
             padding-left: 12px !important;
             padding-right: 12px !important;
+            overflow-x: hidden;
           }
-          /* Tailwind grid -> 모바일에서는 1열 */
           .grid {
             grid-template-columns: 1fr !important;
           }
-          /* 경기 기록 카드, 위젯이 화면 밖으로 나가지 않게 */
+          /* 카드가 화면 밖으로 나가지 않게 */
           div[class*="rounded-"] {
             max-width: 100%;
-          }
-          /* flex row로 되어있는 카드 헤더들을 모바일에서 세로로 */
-          div[class*="flex"][class*="justify-between"] {
-            flex-wrap: wrap;
-            gap: 8px;
-          }
-          /* 긴 닉네임, 챔피언 리스트 줄바꿈 */
-          span, p {
-            word-break: break-word;
-            overflow-wrap: anywhere;
-          }
-          /* 테이블이 있으면 가로 스크롤로 처리 */
-          table {
-            display: block;
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-          /* 헤더 탭들이 넘칠 때 스크롤 */
-          header nav, header div[class*="flex"] {
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            scrollbar-width: none;
-          }
-          header nav::-webkit-scrollbar {
-            display: none;
-          }
-          /* 모달이 화면보다 클 때 */
-          div[class*="max-w-"] {
-            max-width: calc(100vw - 24px) !important;
-          }
-          /* 승률 추이 위젯 등 차트 영역 */
-          canvas, svg {
-            max-width: 100% !important;
-          }
-        }
-        @media (max-width: 480px) {
-          /* 아주 작은 화면에서는 폰트/패딩 더 축소 */
-          main {
-            padding-left: 10px !important;
-            padding-right: 10px !important;
-          }
-          /* 경기 카드 내부 요소들 세로 정렬 강제 */
-          .flex-col-mobile {
-            flex-direction: column !important;
           }
         }
       `}</style>
