@@ -276,24 +276,57 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   };
 
   // FIXED: Winner selection - calculate from actual same-series matches, not just state
+    // FIX v7: 승리 선택 시 state에 의존하지 않고 매번 이전 세트 승자를 다시 계산 (3:0 버그 근본 해결)
   const handleSelectWinner = (winner: 'Red' | 'Blue') => {
-    const sameSeries = matches
-      .filter((m) => m.date === formData.date && m.ck_name.trim() === formData.ck_name.trim() && m.id !== formData.id)
-      .sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
-    
-    let red = 0;
-    let blue = 0;
-    for (const m of sameSeries) {
-      if (m.winning_team === 'Red') red++;
-      else blue++;
-    }
-    if (winner === 'Red') red++;
-    else blue++;
+    // 현재 폼의 날짜/CK/세트번호 기준으로 이전 세트들만 다시 계산
+    const currentDate = formData.date;
+    const currentCk = (formData.ck_name || '').trim();
+    const currentSetNum = (() => {
+      const raw = formData.set_number;
+      if (typeof raw === 'number') return raw;
+      const num = parseInt(String(raw).replace(/[^0-9]/g, ''), 10);
+      return isNaN(num) ? 1 : num;
+    })();
+
+    const prevWinnersDynamic = matches
+      .filter((x) => {
+        if (editingMatch && String(x.id) === String(editingMatch.id)) return false;
+        if (x.date !== currentDate) return false;
+        if ((x.ck_name || '').trim() !== currentCk) return false;
+        const xSetNum = (() => {
+          const r = (x as any).set_number;
+          if (typeof r === 'number') return r;
+          const n = parseInt(String(r).replace(/[^0-9]/g, ''), 10);
+          return isNaN(n) ? 1 : n;
+        })();
+        return xSetNum < currentSetNum;
+      })
+      .sort((a, b) => {
+        const aNum = typeof (a as any).set_number === 'number' ? (a as any).set_number : parseInt(String((a as any).set_number).replace(/[^0-9]/g, ''), 10) || 1;
+        const bNum = typeof (b as any).set_number === 'number' ? (b as any).set_number : parseInt(String((b as any).set_number).replace(/[^0-9]/g, ''), 10) || 1;
+        return aNum - bNum;
+      })
+      .map((x) => x.winning_team as 'Red' | 'Blue');
+
+    const baseWinners = prevWinnersDynamic.length > 0 ? prevWinnersDynamic : seriesWinners.filter((w) => {
+      // fallback: seriesWinners가 이미 이전 세트만 담고 있으면 그대로 사용 (신규 등록 시)
+      return true;
+    }).slice(0, currentSetNum - 1);
+
+    // 최종적으로 이전 세트 + 현재 선택으로 누적 계산 (v7 핵심)
+    const prevRed = baseWinners.filter((w) => w === 'Red').length;
+    const prevBlue = baseWinners.filter((w) => w === 'Blue').length;
+    // 신규 등록 모드에서는 seriesWinners가 이전 세트 전부이므로, 수정 모드에서는 동적 계산한 prevWinnersDynamic 사용
+    const usePrev = editingMatch ? prevWinnersDynamic : seriesWinners;
+    const pRed = usePrev.filter((w) => w === 'Red').length;
+    const pBlue = usePrev.filter((w) => w === 'Blue').length;
+    const redWins = pRed + (winner === 'Red' ? 1 : 0);
+    const blueWins = pBlue + (winner === 'Blue' ? 1 : 0);
 
     setFormData((prev) => ({
       ...prev,
       winning_team: winner,
-      score: `${red}:${blue}`,
+      score: `${redWins}:${blueWins}`,
     }));
     setFormError('');
   };
