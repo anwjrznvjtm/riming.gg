@@ -11,10 +11,6 @@ interface Props {
   className?: string;
 }
 
-/**
- * CLEAN 버전 - 돋보기, 초성 힌트 텍스트 전부 제거
- * 기능은 그대로 초성 ㅇㄹㅁ_ -> 우리밍_ 작동, 화면은 깔끔하게
- */
 export const StreamerAutocomplete: React.FC<Props> = ({
   value,
   allStreamers,
@@ -82,7 +78,7 @@ export const StreamerAutocomplete: React.FC<Props> = ({
           placeholder={placeholder}
           className="w-full h-[32px] bg-[#12121a] border border-[#1e1e2a] rounded-full px-3 text-[11px] text-white placeholder:text-[#5a5a70] focus:outline-none focus:border-[#8b5cf6]/50 transition"
         />
-        {query && <button onClick={() => { setQuery(''); onChange?.(''); setIsOpen(false); inputRef.current?.focus(); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded-full bg-[#1e1e2a] text-[#6a6a80] hover:text-white text-[10px]">✕</button>}
+        {query && <button onClick={() => { setQuery(''); onChange?.(''); setIsOpen(false); inputRef.current?.focus(); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded-full bg-[#1e1e2a] text-[#6a6a80] hover:text-white text-[10px]">X</button>}
       </div>
       {isOpen && results.length > 0 && (
         <div className="absolute z-50 mt-1 w-full bg-[#12121a] border border-[#1e1e2a] rounded-[12px] shadow-xl overflow-hidden max-h-[240px] overflow-y-auto">
