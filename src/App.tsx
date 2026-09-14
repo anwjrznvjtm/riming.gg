@@ -124,6 +124,7 @@ export default function App() {
       if (error) {
         console.warn('[Cloud Sync] Error:', error);
         if (!isSilent) setSyncStatus('error');
+        setIsLoading(false);
         return;
       }
       if (Array.isArray(remoteMatches)) {
