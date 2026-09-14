@@ -1,16 +1,12 @@
 /**
  * src/lib/champions.ts
- * FINAL - 173개 챔피언 전체 매핑 (2026년 6월 기준)
- * 173번째 챔피언 '로크(Locke)' 포함
+ * FINAL FIX - 173개 챔피언 + 중복 제거 + parseKdaString 복구
  */
-
-const DDRAGON_VERSION = "16.11.1"; // 173번째 로크 포함 최신 버전, 없으면 14.23.1로 fallback 됨
+const DDRAGON_VERSION = "16.11.1";
 const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
 
-// 173개 전체 매핑 (한글 -> 영문 Data Dragon 파일명)
-// Data Dragon 파일명은 대소문자 구분 있음
 export const CHAMPION_KR_TO_EN: Record<string, string> = {
-  // ㄱ
+
   "가렌": "Garen", "갈리오": "Galio", "갱플랭크": "Gangplank", "그라가스": "Gragas",
   "그레이브즈": "Graves", "그웬": "Gwen", "나르": "Gnar", "나미": "Nami",
   "나서스": "Nasus", "나피리": "Naafiri", "녹턴": "Nocturne", "누누와 윌럼프": "Nunu", "누누": "Nunu",
@@ -22,7 +18,7 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "루시안": "Lucian", "룰루": "Lulu", "르블랑": "Leblanc", "리 신": "LeeSin", "리신": "LeeSin",
   "리븐": "Riven", "리산드라": "Lissandra", "릴리아": "Lillia", "록": "Locke", "로크": "Locke",
   "말자하": "Malzahar", "말파이트": "Malphite", "마오카이": "Maokai",
-  "마스터 이": "MasterYi", "마스터이": "MasterYi", "마오카이": "Maokai",
+  "마스터 이": "MasterYi", "마스터이": "MasterYi",
   "모데카이저": "Mordekaiser", "모르가나": "Morgana", "문도 박사": "DrMundo", "문도박사": "DrMundo", "문도": "DrMundo",
   "미스 포츈": "MissFortune", "미스포츈": "MissFortune", "미포": "MissFortune", "밀리오": "Milio",
   "바드": "Bard", "바루스": "Varus", "바이": "Vi", "베이가": "Veigar", "베인": "Vayne",
@@ -54,15 +50,12 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "트런들": "Trundle", "트리스타나": "Tristana", "트린다미어": "Tryndamere",
   "트위스티드 페이트": "TwistedFate", "트페": "TwistedFate", "트위치": "Twitch",
   "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz",
-  "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "헤카림": "Hecarim", "흐웨이": "Hwei",
-  // 신챔
-  "브라이어": "Briar", "나피리": "Naafiri", "밀리오": "Milio", "흐웨이": "Hwei", "스몰더": "Smolder",
-  "오로라": "Aurora", "암베사": "Ambessa", "멜": "Mel", "로크": "Locke", "록": "Locke",
-  // 약어
-  "미포": "MissFortune", "이즈": "Ezreal", "블츠": "Blitzcrank", "모데": "Mordekaiser",
+  "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "흐웨이": "Hwei",
+  "브라이어": "Briar", "멜": "Mel",
+  "블츠": "Blitzcrank", "모데": "Mordekaiser",
+
 };
 
-// 총 개수 검증용
 export const TOTAL_CHAMPIONS = 173;
 
 export function normalizeChampionName(name: string): string {
@@ -93,3 +86,23 @@ export function getChampionFallbackUrl(krName: string): string | null {
   if (!enName) return null;
   return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${enName}.png`;
 }
+
+export function parseKdaString(kda: string): { kills: number; deaths: number; assists: number; kda: number } {
+  if (!kda) return { kills: 0, deaths: 0, assists: 0, kda: 0 };
+  try {
+    const parts = kda.trim().split('/').map(s => parseInt(s.trim(), 10) || 0);
+    const kills = parts[0] || 0;
+    const deaths = parts[1] || 0;
+    const assists = parts[2] || 0;
+    const kdaValue = deaths === 0 ? kills + assists : (kills + assists) / deaths;
+    return { kills, deaths, assists, kda: Math.round(kdaValue * 100) / 100 };
+  } catch {
+    return { kills: 0, deaths: 0, assists: 0, kda: 0 };
+  }
+}
+
+export const SOOP_POPULAR_STREAMERS: string[] = [
+  "풍월량", "우왁굳", "아이네", "징버거", "릴파", "주르르", "고세구", "비챤",
+  "김도", "강지", "괴물쥐", "뱅붕", "얍얍", "정수", "도파", "러너",
+  "울프", "클템", "던", "앰비션", "쿠로", "프레이", "데프트", "페이커",
+];
