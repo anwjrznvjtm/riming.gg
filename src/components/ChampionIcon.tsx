@@ -26,7 +26,7 @@ export const ChampionIcon: React.FC<Props> = ({ name, size = 24, shape = "circle
     return (
       <div
         style={{ width: size, height: size }}
-        className={`${shape === "circle" ? "rounded-full" : "rounded-[4px]"} bg-[#1e1e2a] border border-[#2a2a3a] flex items-center justify-center text-[8px] text-[#6a6a80] font-bold`}
+        className={`${shape === "circle" ? "rounded-full" : "rounded-[4px]"} bg-[#1e1e2a] border border-[#2a2a3a] flex items-center justify-center text-[8px] text-[#a0a6bd] font-bold`}
         title={cleanName}
       >
         {cleanName.slice(0, 2)}
