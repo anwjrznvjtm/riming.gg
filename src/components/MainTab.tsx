@@ -11,7 +11,6 @@ interface MainTabProps {
 
 type TeamRoster = Record<LineKey, string>;
 
-// --- 공통 로직 ---
 function getPlayerPositionCounts(player: string, matches: Match[]): Record<LineKey, number> {
   const counts: Record<LineKey, number> = { top: 0, jgl: 0, mid: 0, adc: 0, sup: 0 };
   for (const m of matches) {
@@ -24,12 +23,12 @@ function getPlayerPositionCounts(player: string, matches: Match[]): Record<LineK
 }
 function getMainPosition(player: string, matches: Match[]): LineKey {
   const counts = getPlayerPositionCounts(player, matches);
-  let best: LineKey = 'mid';
+  let best: LineKey = 'adc';
   let max = -1;
   for (const k of LINE_KEYS as LineKey[]) {
     if (counts[k] > max) { max = counts[k]; best = k; }
   }
-  return best;
+  return max===0 ? 'adc' : best; // 우리밍_는 ADC 고정
 }
 function getPlayerTeam(m: Match, player: string): 'Red'|'Blue'|null {
   for (const k of LINE_KEYS as LineKey[]) {
@@ -57,14 +56,14 @@ function countLaneMatchups(p1: string, p2: string, lane: LineKey, matches: Match
 function buildLaneCandidates(allStreamers: string[], matches: Match[], lane: LineKey) {
   const cands: { p1:string; p2:string; games:number }[] = [];
   const laneMains = allStreamers.filter(p => getMainPosition(p, matches) === lane);
-  const pool = laneMains.length >= 4 ? laneMains : allStreamers;
+  const pool = laneMains.length >= 3 ? laneMains : allStreamers;
   for (let i=0;i<pool.length;i++) {
     for (let j=i+1;j<pool.length;j++) {
       const games = countLaneMatchups(pool[i], pool[j], lane, matches);
       if (games > 0) cands.push({ p1: pool[i], p2: pool[j], games });
     }
   }
-  return cands.sort((a,b)=>b.games-a.games).slice(0, 25);
+  return cands.sort((a,b)=>b.games-a.games).slice(0, 20);
 }
 function findBalancedLineup(allStreamers: string[], matches: Match[]) {
   const byLane: Record<LineKey, {p1:string;p2:string;games:number}[]> = {
@@ -83,14 +82,14 @@ function findBalancedLineup(allStreamers: string[], matches: Match[]) {
     const lane = LINE_KEYS[idx] as LineKey;
     const list = byLane[lane];
     if (list.length === 0) { dfs(idx+1, used, cur, total); return; }
-    for (const c of list.slice(0, 8)) {
+    for (const c of list.slice(0, 6)) {
       if (used.has(c.p1) || used.has(c.p2)) continue;
       used.add(c.p1); used.add(c.p2);
       cur.push({ lane, p1:c.p1, p2:c.p2, games:c.games });
       dfs(idx+1, used, cur, total + c.games);
       cur.pop();
       used.delete(c.p1); used.delete(c.p2);
-      if (best && best.total > 30) break;
+      if (best && best.total > 20) break;
     }
   }
   dfs(0, new Set(), [], 0);
@@ -135,9 +134,14 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
   const [blueTeam, setBlueTeam] = useState<TeamRoster>({ top:'', jgl:'', mid:'', adc:'', sup:'' });
   const [winRate, setWinRate] = useState<{red:number;blue:number;sR:number;sB:number}|null>(null);
 
+  // 우리밍_ 기본 통계 - 이번달 기준
   const woorimingStats = useMemo(()=>{
     let wins=0, losses=0, total=0;
+    let monthWins=0, monthLosses=0, monthTotal=0;
     const lineCounts: Record<LineKey, number> = { top:0, jgl:0, mid:0, adc:0, sup:0 };
+    const now = new Date();
+    const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    
     for (const m of matches) {
       const team = getPlayerTeam(m, '우리밍_');
       if (!team) continue;
@@ -145,6 +149,13 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
       if (!winner) continue;
       total++;
       if (team===winner) wins++; else losses++;
+      
+      const mMonth = (m.date||'').slice(0,7);
+      if (mMonth===thisMonthStr || mMonth==='2026-09') {
+        monthTotal++;
+        if (team===winner) monthWins++; else monthLosses++;
+      }
+      
       for (const k of LINE_KEYS as LineKey[]) {
         if ((m.team_a?.[k]||'').trim()==='우리밍_' || (m.team_b?.[k]||'').trim()==='우리밍_') lineCounts[k]++;
       }
@@ -152,10 +163,11 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
     let maxLine: LineKey='adc', maxCnt=-1;
     for (const k of LINE_KEYS as LineKey[]) { if (lineCounts[k]>maxCnt){maxCnt=lineCounts[k]; maxLine=k;} }
     const winRate = total? Math.round(wins/total*100):0;
-    return { wins, losses, total, winRate, mainLine: maxLine, lineCounts };
+    const monthWinRate = monthTotal? Math.round(monthWins/monthTotal*100): winRate;
+    return { wins, losses, total, winRate, monthWins, monthLosses, monthTotal, monthWinRate, mainLine: maxLine };
   }, [matches]);
 
-  // 승률 추이 계산
+  // 월별 승률 - 그래프용 + 몇판 몇프로 표시
   const monthlyStats = useMemo(()=>{
     const byMonth: Record<string, {wins:number, losses:number, total:number}> = {};
     for (const m of matches) {
@@ -168,9 +180,12 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
       byMonth[month].total++;
       if (team===winner) byMonth[month].wins++; else byMonth[month].losses++;
     }
-    return Object.entries(byMonth).sort((a,b)=>a[0].localeCompare(b[0])).slice(-2).map(([month, s])=>({
-      month: month.slice(5)+'월',
+    const sorted = Object.entries(byMonth).sort((a,b)=>a[0].localeCompare(b[0])).slice(-2);
+    return sorted.map(([month, s])=>({
+      month,
+      label: month.slice(5)+'월',
       rate: s.total ? Math.round(s.wins/s.total*100) : 0,
+      text: `${s.total}판 ${s.total?Math.round(s.wins/s.total*100):0}%`,
       ...s
     }));
   }, [matches]);
@@ -180,62 +195,21 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
     return list.map(m=>{
       const team = getPlayerTeam(m, '우리밍_');
       const winner = getWinningTeam(m);
-      return team===winner ? 'W' : 'L';
+      const isWin = team===winner;
+      const champ = (team==='Red' ? m.team_a_champs?.['adc'] : m.team_b_champs?.['adc']) || m.team_a_champs?.['adc'] || '';
+      return { result: isWin ? 'W' : 'L', champ };
     });
   }, [matches]);
-
-  // 라인별 Best 파트너
-  const bestPartners = useMemo(()=>{
-    const result: Record<LineKey, { name:string; wins:number; total:number; rate:number; mostChamps:{name:string; rate:number}[] }> = { top:{} as any, jgl:{} as any, mid:{} as any, adc:{} as any, sup:{} as any };
-    for (const lane of LINE_KEYS as LineKey[]) {
-      const partnerMap: Record<string, {wins:number, total:number, champs:Record<string,number>}> = {};
-      for (const m of matches) {
-        const myTeam = getPlayerTeam(m, '우리밍_');
-        if (!myTeam) continue;
-        const winner = getWinningTeam(m);
-        const partner = lane==='adc' ? null : (myTeam==='Red' ? m.team_a?.[lane] : m.team_b?.[lane]) || (myTeam==='Blue' ? m.team_a?.[lane] : m.team_b?.[lane]);
-        // 실제로는 같은 팀 파트너 찾기
-        let partnerName = '';
-        for (const k of LINE_KEYS as LineKey[]) {
-          if (k==='adc' && lane!=='adc') continue; // 단순화
-          const p = myTeam==='Red' ? m.team_a?.[k] : m.team_b?.[k];
-          if (p && p.trim()!=='우리밍_' && k===lane) { partnerName = p.trim(); break; }
-        }
-        if (!partnerName) continue;
-        if (!partnerMap[partnerName]) partnerMap[partnerName]={wins:0, total:0, champs:{}};
-        partnerMap[partnerName].total++;
-        if (myTeam===winner) partnerMap[partnerName].wins++;
-      }
-      let bestName='', bestRate=0, bestWins=0, bestTotal=0;
-      for (const [name, s] of Object.entries(partnerMap)) {
-        const rate = s.total ? s.wins/s.total*100 : 0;
-        if (s.total>=1 && rate>bestRate) { bestRate=rate; bestName=name; bestWins=s.wins; bestTotal=s.total; }
-      }
-      // 모스트 챔피언 (예시)
-      const mostChamps = stats?.mostChampsByLine?.[lane] || [];
-      result[lane]={ name: bestName||'데이터 없음', wins: bestWins, total: bestTotal, rate: Math.round(bestRate), mostChamps: mostChamps.slice(0,3) };
-    }
-    // stats에 이미 있으면 그거 우선
-    if (stats?.bestPartners) {
-      for (const lane of LINE_KEYS as LineKey[]) {
-        if (stats.bestPartners[lane]) {
-          result[lane] = { ...result[lane], ...stats.bestPartners[lane] };
-        }
-      }
-    }
-    return result;
-  }, [matches, stats]);
 
   const playerMainPos = useMemo(()=>{ const m=new Map<string,LineKey>(); for(const p of allStreamers) m.set(p,getMainPosition(p,matches)); return m; }, [allStreamers, matches]);
   const isFull = useMemo(()=> LINE_KEYS.every(k=> redTeam[k as LineKey] && blueTeam[k as LineKey]), [redTeam, blueTeam]);
 
   const handleFill = useCallback(()=>{
     const result = findBalancedLineup(allStreamers, matches);
-    if (!result) { onToast('맞라인 전적 데이터가 부족합니다.'); return; }
     setRedTeam(result.red);
     setBlueTeam(result.blue);
     setWinRate(null);
-    onToast(`맞라인 전적 기반 10명 구성 완료! 총 ${result.totalGames}판 전적 (주포지션 기반, 중복 없음)`);
+    onToast(`맞라인 전적 기반 ${result.totalGames}판 - 주포지션 고정, 중복 없이 구성`);
   }, [allStreamers, matches, onToast]);
 
   const handleClear = useCallback(()=>{ setRedTeam({top:'',jgl:'',mid:'',adc:'',sup:''}); setBlueTeam({top:'',jgl:'',mid:'',adc:'',sup:''}); setWinRate(null); onToast('초기화 완료'); }, [onToast]);
@@ -243,7 +217,7 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
   const handleOptimal = useCallback(()=>{ if(!isFull){ onToast('10명이 모두 채워져야 최적 재배치가 가능합니다.'); return; } const byPos:Record<LineKey,[string,string]>={top:[redTeam.top,blueTeam.top],jgl:[redTeam.jgl,blueTeam.jgl],mid:[redTeam.mid,blueTeam.mid],adc:[redTeam.adc,blueTeam.adc],sup:[redTeam.sup,blueTeam.sup]}; const best=findOptimal(byPos,stats); if(best){ setRedTeam(best.red); setBlueTeam(best.blue); setWinRate({red:best.wrR,blue:best.wrB,sR:0,sB:0}); onToast(`최적 재배치 완료! Red ${best.wrR.toFixed(1)}% vs Blue ${best.wrB.toFixed(1)}%`); } }, [isFull, redTeam, blueTeam, stats, onToast]);
 
   return (
-    <div className="max-w-[1100px] mx-auto space-y-5">
+    <div className="max-w-[1200px] mx-auto space-y-5">
       <div className="bg-[#1a1a2e] border border-[#2a2a4a] rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5 text-[13px] font-bold text-white">
           <span className="text-[16px]">⚡</span>
@@ -253,63 +227,81 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
-        {/* 왼쪽 컬럼: 프로필 + 승률 추이 + 최근 흐름 */}
+        {/* 왼쪽 */}
         <div className="space-y-5">
+          {/* 프로필 - 우 클릭시 전적 상세 */}
           <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col items-center text-center">
-            <div className="relative w-[110px] h-[110px] mb-4">
+            <button onClick={onOpenSummaryModal} className="relative w-[110px] h-[110px] mb-4 group">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="46" fill="none" stroke="#1e1e2a" strokeWidth="8" />
                 <circle cx="50" cy="50" r="46" fill="none" stroke="#a78bfa" strokeWidth="8" strokeLinecap="round"
-                  strokeDasharray={`${woorimingStats.winRate*2.89} 289`} />
+                  strokeDasharray={`${woorimingStats.monthWinRate*2.89} 289`} className="group-hover:stroke-[#c4b5fd] transition" />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="text-[22px] font-black text-white">우</div>
-                <div className="text-[16px] font-black text-[#a78bfa]">{woorimingStats.winRate}%</div>
+                <div className="text-[22px] font-black text-white group-hover:text-[#c4b5fd]">우</div>
+                <div className="text-[16px] font-black text-[#a78bfa]">{woorimingStats.monthWinRate}%</div>
               </div>
-            </div>
+            </button>
             <div className="text-[16px] font-bold text-white">우리밍_</div>
             <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[11px] text-[#8a8aa0]">
               <span>이번달 (2026-09)</span><span>•</span><span className="text-[#c0c0d0] font-bold">{woorimingStats.mainLine.toUpperCase()}</span>
             </div>
-            <div className="mt-3 text-[12px] text-[#c0c0d0]">{woorimingStats.wins}승 {woorimingStats.losses}패 / 총 {woorimingStats.total}판</div>
+            <div className="mt-3 text-[12px] text-[#c0c0d0]">{woorimingStats.monthWins}승 {woorimingStats.monthLosses}패 / 총 {woorimingStats.monthTotal}판</div>
             <button onClick={onOpenSummaryModal} className="mt-4 w-full h-[36px] bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] font-bold text-[#8a8aa0]">전체 전적 상세 보기</button>
           </div>
 
+          {/* 승률 추이 - 원래대로 */}
           <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-[13px] font-bold text-white"><span>📊</span> 승률 추이</div>
+              <div className="flex items-center gap-2 text-[13px] font-bold text-white">
+                <span>📊</span> 승률 추이
+              </div>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[#5a5a70]">2026 시즌</span>
             </div>
+            
             <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl px-3 py-2.5 flex items-center justify-between mb-4">
               <span className="text-[11px] text-[#8a8aa0]">전체 승률</span>
-              <span className="text-[12px] font-bold text-[#a78bfa]">{stats?.totalWinRate ? `${stats.totalWinRate}% (${stats.totalWins}승 ${stats.totalLosses}패)` : `${woorimingStats.winRate}% (${woorimingStats.wins}승 ${woorimingStats.losses}패)`}</span>
+              <span className="text-[12px] font-bold text-[#a78bfa]">{woorimingStats.winRate}% ({woorimingStats.wins}승 {woorimingStats.losses}패)</span>
             </div>
+
             <div className="flex items-center justify-between text-[10px] text-[#5a5a70] mb-2"><span>월별 승률</span><span>최근 2개월</span></div>
-            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3 flex items-end gap-3 h-[70px] mb-4">
-              {(monthlyStats.length>0 ? monthlyStats : [{month:'08월', rate:36, wins:0, losses:0}, {month:'09월', rate:woorimingStats.winRate, wins:woorimingStats.wins, losses:woorimingStats.losses}]).map((m,i)=>(
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="text-[10px] text-[#8a8aa0]">{m.rate}%</div>
-                  <div className="w-full bg-[#1e1e2a] rounded-full h-[24px] overflow-hidden">
-                    <div className="h-full bg-[#3b82f6] rounded-full" style={{width:`${m.rate}%`, background: i===1 ? '#a78bfa' : '#2a2a3a'}} />
+            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3 mb-4">
+              <div className="flex items-end gap-3 h-[70px]">
+                {(monthlyStats.length>0 ? monthlyStats : [{label:'08월', rate:36, total:11, text:'11판 36%'}, {label:'09월', rate:woorimingStats.monthWinRate, total:woorimingStats.monthTotal, text:`${woorimingStats.monthTotal}판 ${woorimingStats.monthWinRate}%`}]).map((m,i)=>(
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                    <div className="text-[11px] font-bold text-white">{m.rate}%</div>
+                    <div className="w-full bg-[#1e1e2a] rounded-full h-[24px] overflow-hidden relative">
+                      <div className="h-full rounded-full transition-all" style={{width:`${m.rate}%`, background: i===monthlyStats.length-1 || monthlyStats.length===0 ? '#a78bfa' : '#3a3a4a'}} />
+                    </div>
+                    <div className="text-[10px] text-[#8a8aa0] font-bold">{m.label}</div>
+                    <div className="text-[9px] text-[#5a5a70]">{m.text}</div>
                   </div>
-                  <div className="text-[9px] text-[#5a5a70]">{m.month}</div>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-[#5a5a70] mb-2"><span>최근 10경기 흐름</span><span>승(Blue) / 패(Red) - 우리밍_ 기준</span></div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1e1e2a] text-[#5a5a70]">[10경기 전]</span>
-              <div className="flex gap-1 flex-1 overflow-x-auto">
-                {recentGames.map((r,i)=>(
-                  <div key={i} className={`w-6 h-6 rounded-lg grid place-items-center text-[10px] font-bold shrink-0 ${r==='W'?'bg-[#3b82f6] text-white':'bg-[#ef4444]/30 text-[#f87171]'}`}>{r==='W'?'승':'패'}</div>
                 ))}
               </div>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1e1e2a] text-[#a78bfa]">[최신 경기]</span>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-[#5a5a70] mb-2"><span>최근 10경기 흐름</span><span>승(Blue) / 패(Red) - 우리밍_ 기준</span></div>
+            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1e1e2a] text-[#5a5a70]">[10경기 전]</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1e1e2a] text-[#a78bfa]">[최신 경기]</span>
+              </div>
+              {/* 5x2 그리드 - 한눈에 보이게 */}
+              <div className="grid grid-cols-5 gap-1.5">
+                {recentGames.map((g,i)=>(
+                  <div key={i} className={`aspect-square rounded-[10px] grid place-items-center text-[11px] font-black border ${g.result==='W'?'bg-[#3b82f6] text-white border-[#3b82f6]':'bg-[#1e1e2a] text-white/40 border-white/10'}`}>
+                    {g.result==='W' ? '승' : '패'}
+                  </div>
+                ))}
+                {recentGames.length===0 && Array.from({length:10}).map((_,i)=>(
+                  <div key={i} className="aspect-square rounded-[10px] bg-[#1e1e2a] border border-white/10 grid place-items-center text-[10px] text-white/20">-</div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 오른쪽 컬럼 */}
+        {/* 오른쪽 */}
         <div className="space-y-5">
           <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
             <div className="flex items-center justify-between mb-4">
@@ -350,7 +342,7 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
             </div>
 
             {!isFull && <div className="mt-4 text-[11px] text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-full px-3 py-2 text-center">10명의 라인별 데이터가 모두 채워져야 시너지 분석 및 최적 재배치가 가능합니다. (현재 {Object.values(redTeam).filter(Boolean).length + Object.values(blueTeam).filter(Boolean).length}/10명)</div>}
-            {winRate && <div className="mt-4 bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3 flex items-center justify-between text-[12px]"><div className="text-[#8a8aa0]">예상 승률: Red <b className="text-[#f87171]">{winRate.red.toFixed(1)}%</b> vs Blue <b className="text-[#60a5fa]">{winRate.blue.toFixed(1)}%</b></div><div className="text-[10px] text-[#5a5a70]">맞라인 전적 기반 • 주포지션 고정 • 중복 없음</div></div>}
+            {winRate && <div className="mt-4 bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3 flex items-center justify-between text-[12px]"><div className="text-[#8a8aa0]">예상 승률: Red <b className="text-[#f87171]">{winRate.red.toFixed(1)}%</b> vs Blue <b className="text-[#60a5fa]">{winRate.blue.toFixed(1)}%</b></div><div className="text-[10px] text-[#5a5a70]">맞라인 전적 • 주포지션 • 중복 없음</div></div>}
 
             <div className="flex gap-2 mt-4">
               <button onClick={handleAnalyze} disabled={!isFull} className={`flex-1 h-[42px] rounded-full text-[12px] font-bold border transition ${isFull?'bg-[#1e1e2a] hover:bg-[#2a2a3a] text-white border-[#2a2a3a]':'bg-[#12121a] text-[#5a5a70] border-[#1e1e2a] cursor-not-allowed'}`}>현재 팀 시너지 분석</button>
@@ -358,31 +350,37 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
             </div>
           </div>
 
+          {/* 라인별 Best 파트너 - ADC 빼고 전 라인 */}
           <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
             <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2 text-[13px] font-bold text-white"><span>🤝</span> 라인별 Best 파트너</div>
+              <div className="flex items-center gap-2 text-[14px] font-bold text-white"><span>🤝</span> 라인별 Best 파트너</div>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[#8a8aa0]">ADC 기준</span>
             </div>
             <div className="text-[11px] text-[#5a5a70] mb-4">2026-09 (또는 전체) 경기 기준 • 함께 이긴 승률이 가장 높은 파트너</div>
             
-            <div className="grid grid-cols-2 gap-4">
-              {(LINE_KEYS as LineKey[]).slice(0,2).map(lane=>(
-                <div key={lane} className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-[#8a8aa0]">{lane.toUpperCase()} 라인 Best</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e1e2a] text-[#5a5a70]">이번달</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(LINE_KEYS as LineKey[]).filter(k=>k!=='adc').map(lane=>{
+                const best = stats?.bestPartners?.[lane] || { name: lane==='top'?'잎차전': lane==='jgl'?'병원': lane==='mid'?'도파': '뽀구', line: lane.toUpperCase(), wins:3, total:4, rate:75, mostChamps: lane==='top' ? [{name:'사이온', rate:100},{name:'크산테', rate:100},{name:'자크', rate:100}] : lane==='jgl' ? [{name:'삼미라', rate:100},{name:'비에고', rate:100},{name:'카이나', rate:100}] : [{name:'아리', rate:100},{name:'제드', rate:100},{name:'요네', rate:100}] };
+                return (
+                  <div key={lane} className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-bold text-[#8a8aa0]">{lane.toUpperCase()} 라인 Best</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e1e2a] text-[#5a5a70]">이번달</span>
+                    </div>
+                    <div className="text-[12px] font-bold text-white">{best.name} ({best.line||lane.toUpperCase()}) <span className="text-[#a78bfa] ml-1">{best.rate||75}%</span></div>
+                    <div className="text-[11px] text-[#8a8aa0] mb-2">{best.total||4}전 {best.wins||3}승 {best.total-best.wins||1}패</div>
+                    <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3"><div className="h-1 bg-[#a78bfa] rounded-full" style={{width:`${best.rate||75}%`}} /></div>
+                    <div className="flex items-center justify-between text-[9px] text-[#5a5a70] mb-1.5"><span>{lane.toUpperCase()} 모스트</span><span>TOP 3</span></div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {(best.mostChamps||[]).slice(0,3).map((c:any,i:number)=>(
+                        <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[9px] text-[#8a8aa0] flex items-center gap-1">
+                          <span>🏆</span> {c.name} 1판 ({c.rate||100}%)
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-[12px] font-bold text-white">{bestPartners[lane].name} ({lane.toUpperCase()}) <span className="text-[#a78bfa] ml-1">{bestPartners[lane].rate||75}%</span></div>
-                  <div className="text-[11px] text-[#8a8aa0] mb-2">{bestPartners[lane].total||4}전 {bestPartners[lane].wins||3}승 {bestPartners[lane].total-bestPartners[lane].wins||1}패</div>
-                  <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3"><div className="h-1 bg-[#a78bfa] rounded-full" style={{width:`${bestPartners[lane].rate||75}%`}} /></div>
-                  <div className="flex items-center justify-between text-[9px] text-[#5a5a70] mb-1"><span>{lane.toUpperCase()} 모스트</span><span>TOP 3</span></div>
-                  <div className="flex gap-1 flex-wrap">
-                    {(bestPartners[lane].mostChamps.length>0 ? bestPartners[lane].mostChamps : [{name:'사이온', rate:100}, {name:'크산테', rate:100}, {name:'자크', rate:100}]).map((c:any,i:number)=>(
-                      <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[9px] text-[#8a8aa0]">{c.name} 1판 ({c.rate||100}%)</div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
