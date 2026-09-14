@@ -131,7 +131,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     return map;
   }, [matches]);
 
-  // === RESTORED + : ㅇㄹㅁ_, ㅅㅇㄴ, ㄱㄹ 모두 지원 ===
+  // === RESTORED + : _, ,  모두 지원 ===
   const filteredMatches = useMemo(() => {
     return matches
       .filter((m) => {
@@ -1518,7 +1518,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                             updated[bIdx] = val;
                             setFormData((prev) => ({ ...prev, [banKey]: updated }));
                           }}
-                          placeholder={`밴 ${bIdx + 1} ㄱㄹ`}
+                          placeholder={`밴 ${bIdx + 1} `}
                           limit={5}
                         />
                       </div>
