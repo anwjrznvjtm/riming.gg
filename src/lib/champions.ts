@@ -1,27 +1,30 @@
 /**
- * src/lib/champions.ts - CLEANED (중복 제거)
+ * src/lib/champions.ts
+ * FIXED - 올라프, 노틸러스, 벡스, 아크샨 누락 복구
+ * 16.11.1은 존재하지 않아 404 -> 14.24.1로 수정
  */
-const DDRAGON_VERSION = "16.11.1";
+
+const DDRAGON_VERSION = "14.24.1";
 const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
 
 export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "가렌": "Garen", "갈리오": "Galio", "갱플랭크": "Gangplank", "그라가스": "Gragas",
   "그레이브즈": "Graves", "그웬": "Gwen", "나르": "Gnar", "나미": "Nami",
-  "나서스": "Nasus", "나피리": "Naafiri", "녹턴": "Nocturne", "누누와 윌럼프": "Nunu", "누누": "Nunu",
-  "니달리": "Nidalee", "니코": "Neeko", "닐라": "Nilah",
+  "나서스": "Nasus", "나피리": "Naafiri", "노틸러스": "Nautilus", "녹턴": "Nocturne",
+  "누누와 윌럼프": "Nunu", "누누": "Nunu", "니달리": "Nidalee", "니코": "Neeko", "닐라": "Nilah",
   "다리우스": "Darius", "다이애나": "Diana", "드레이븐": "Draven",
   "라이즈": "Ryze", "라칸": "Rakan", "람머스": "Rammus", "럭스": "Lux",
   "럼블": "Rumble", "레나타 글라스크": "Renata", "레나타": "Renata",
   "레넥톤": "Renekton", "레오나": "Leona", "렉사이": "RekSai", "렐": "Rell", "렝가": "Rengar",
   "루시안": "Lucian", "룰루": "Lulu", "르블랑": "Leblanc", "리 신": "LeeSin", "리신": "LeeSin",
   "리븐": "Riven", "리산드라": "Lissandra", "릴리아": "Lillia", "록": "Locke", "로크": "Locke",
-  "말자하": "Malzahar", "말파이트": "Malphite", "마오카이": "Maokai",
+  "마오카이": "Maokai", "말자하": "Malzahar", "말파이트": "Malphite",
   "마스터 이": "MasterYi", "마스터이": "MasterYi",
   "모데카이저": "Mordekaiser", "모르가나": "Morgana", "문도 박사": "DrMundo", "문도박사": "DrMundo", "문도": "DrMundo",
   "미스 포츈": "MissFortune", "미스포츈": "MissFortune", "미포": "MissFortune", "밀리오": "Milio",
   "바드": "Bard", "바루스": "Varus", "바이": "Vi", "베이가": "Veigar", "베인": "Vayne",
-  "벨베스": "Belveth", "벨코즈": "Velkoz", "볼리베어": "Volibear", "브라움": "Braum",
-  "브랜드": "Brand", "블라디미르": "Vladimir", "블리츠크랭크": "Blitzcrank", "블리츠": "Blitzcrank",
+  "벡스": "Vex", "벨베스": "Belveth", "벨코즈": "Velkoz", "볼리베어": "Volibear", "브라움": "Braum",
+  "브랜드": "Brand", "브라이어": "Briar", "블라디미르": "Vladimir", "블리츠크랭크": "Blitzcrank", "블리츠": "Blitzcrank", "블츠": "Blitzcrank",
   "비에고": "Viego", "빅토르": "Viktor", "뽀삐": "Poppy",
   "사미라": "Samira", "사이온": "Sion", "사일러스": "Sylas", "샤코": "Shaco",
   "세나": "Senna", "세라핀": "Seraphine", "세주아니": "Sejuani", "세트": "Sett",
@@ -30,9 +33,9 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "시비르": "Sivir", "신 짜오": "XinZhao", "신짜오": "XinZhao", "신지드": "Singed", "신드라": "Syndra",
   "쓰레쉬": "Thresh",
   "아리": "Ahri", "아무무": "Amumu", "아우렐리온 솔": "AurelionSol", "아우솔": "AurelionSol",
-  "아이번": "Ivern", "아지르": "Azir", "아칼리": "Akali", "아트록스": "Aatrox", "아펠리오스": "Aphelios",
+  "아이번": "Ivern", "아지르": "Azir", "아칼리": "Akali", "아크샨": "Akshan", "아트록스": "Aatrox", "아펠리오스": "Aphelios",
   "알리스타": "Alistar", "암베사": "Ambessa", "애니": "Annie", "애니비아": "Anivia", "애쉬": "Ashe",
-  "야스오": "Yasuo", "에코": "Ekko", "엘리스": "Elise", "오공": "MonkeyKing", "오른": "Ornn", "오리아나": "Orianna",
+  "야스오": "Yasuo", "에코": "Ekko", "엘리스": "Elise", "오공": "MonkeyKing", "올라프": "Olaf", "오른": "Ornn", "오리아나": "Orianna",
   "오로라": "Aurora", "요네": "Yone", "요릭": "Yorick", "우디르": "Udyr", "우르곳": "Urgot",
   "워윅": "Warwick", "유미": "Yuumi", "이렐리아": "Irelia", "이블린": "Evelynn", "이즈리얼": "Ezreal", "이즈": "Ezreal",
   "일라오이": "Illaoi",
@@ -49,8 +52,9 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "트위스티드 페이트": "TwistedFate", "트페": "TwistedFate", "트위치": "Twitch",
   "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz",
   "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "흐웨이": "Hwei",
-  "브라이어": "Briar", "멜": "Mel",
-  "블츠": "Blitzcrank", "모데": "Mordekaiser",
+  "브라이어": "Briar", "나피리": "Naafiri", "밀리오": "Milio", "흐웨이": "Hwei", "스몰더": "Smolder",
+  "오로라": "Aurora", "암베사": "Ambessa", "멜": "Mel", "윤아라": "Yunara", "로크": "Locke", "록": "Locke",
+  "미포": "MissFortune", "이즈": "Ezreal", "블츠": "Blitzcrank", "모데": "Mordekaiser",
 };
 
 export const TOTAL_CHAMPIONS = 173;
@@ -81,25 +85,5 @@ export function getChampionIconUrl(krName: string): string | null {
 export function getChampionFallbackUrl(krName: string): string | null {
   const enName = getChampionEnName(krName);
   if (!enName) return null;
-  return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${enName}.png`;
+  return `https://ddragon.leagueoflegends.com/cdn/13.1.1/img/champion/${enName}.png`;
 }
-
-export function parseKdaString(kda: string): { kills: number; deaths: number; assists: number; kda: number } {
-  if (!kda) return { kills: 0, deaths: 0, assists: 0, kda: 0 };
-  try {
-    const parts = kda.trim().split('/').map(s => parseInt(s.trim(), 10) || 0);
-    const kills = parts[0] || 0;
-    const deaths = parts[1] || 0;
-    const assists = parts[2] || 0;
-    const kdaValue = deaths === 0 ? kills + assists : (kills + assists) / deaths;
-    return { kills, deaths, assists, kda: Math.round(kdaValue * 100) / 100 };
-  } catch {
-    return { kills: 0, deaths: 0, assists: 0, kda: 0 };
-  }
-}
-
-export const SOOP_POPULAR_STREAMERS: string[] = [
-  "풍월량", "우왁굳", "아이네", "징버거", "릴파", "주르르", "고세구", "비챤",
-  "김도", "강지", "괴물쥐", "뱅붕", "얍얍", "정수", "도파", "러너",
-  "울프", "클템", "던", "앰비션", "쿠로", "프레이", "데프트", "페이커",
-];
