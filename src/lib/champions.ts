@@ -51,7 +51,7 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "트위스티드 페이트": "TwistedFate", "트페": "TwistedFate", "트위치": "Twitch",
   "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz",
   "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "흐웨이": "Hwei",
-  "멜": "Mel", "윤아라": "Yunara", "모데": "Mordekaiser",
+  "멜": "Mel", "윤아라": "Yunara", "유나라": "Yunara", "자헨": "Yunara", "자야": "Xayah", "자야헨": "Xayah", "모데": "Mordekaiser",
 };
 
 export const TOTAL_CHAMPIONS = 173;
