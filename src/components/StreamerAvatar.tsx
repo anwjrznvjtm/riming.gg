@@ -53,12 +53,72 @@ export const SOOP_STREAMER_IDS: Record<string, string> = {
   '박삐삐': 'bbibbi',
   '트할': 'thal',
   '마린': 'marin',
+  '안녕수야': 'suyadi',
+  '듀단': 'dydan',
+  '박잔디': 'parkjandi',
+  '보혜': 'bohe',
+  '늑채': 'neukchae',
+  '모꿀몬': 'moggulmon',
+  '나무늘봉순': 'namunlbong',
+  '박나닝': 'naning',
+  '이유란': 'yuran',
+  '갱제': 'gangje',
+  '나는푸르': 'puru',
+  '미스마': 'missma',
+  '김윤환': 'calm',
+  '염보성': 'yeombosung',
+  '정윤종': 'rain',
+  '조경훈': 'rudgns',
+  '쿼드': 'quad',
+  '에디': 'addy',
+  '무진': 'moojin',
+  '호진': 'hojin',
+  '김찬호': 'ralpa',
+  '랄로': 'ralpa',
+  '파카': 'paka',
+  '괴물쥐': 'monsterrat',
+  '도파': 'dopa',
+  '씨맥': 'cvmax',
+  '클템': 'cleartem',
+  '포니': 'pony',
+  '캡틴잭': 'captainjack',
+  '운타라': 'untara',
+  '칸': 'khan',
+  '프레이': 'pray',
+  '고릴라': 'gorilla',
+  '뱅': 'bang',
+  '울프': 'wolf',
+  '매드라이프': 'madlife',
+  '샤이': 'shy',
+  '앰비션': 'ambition',
+  '큐베': 'cuvee',
+  '크라운': 'crown',
+  '코어장전': 'corejj',
+  '룰러': 'ruler',
+  '베릴': 'beryl',
+  '데프트': 'deft',
+  '표식': 'pyosik',
+  '폰': 'pawn',
+  '기인': 'kiin',
+  '캐니언': 'canyon',
+  '쇼메이커': 'showmaker',
+  '쵸비': 'chovy',
+  '페이커': 'faker',
+  '제우스': 'zeus',
+  '오너': 'oner',
+  '구마유시': 'gumayusi',
+  '케리아': 'keria',
 };
 
 export function getSoopProfileUrl(streamerName?: string): string | null {
   if (!streamerName) return null;
   const clean = streamerName.trim();
-  const id = SOOP_STREAMER_IDS[clean] || SOOP_STREAMER_IDS[clean.replace(/\s+/g, '')];
+  const withoutUnderscore = clean.endsWith('_') ? clean.slice(0, -1) : clean;
+  const noSpace = clean.replace(/\s+/g, '');
+  const id =
+    SOOP_STREAMER_IDS[clean] ||
+    SOOP_STREAMER_IDS[withoutUnderscore] ||
+    SOOP_STREAMER_IDS[noSpace];
   if (!id) return null;
   // SOOP user title / profile image standard CDN path
   return `https://stimg.sooplive.co.kr/LOGO/${id.slice(0, 2)}/${id}/${id}.jpg`;
@@ -81,6 +141,23 @@ export const StreamerAvatar: React.FC<StreamerAvatarProps> = ({
   const cleanName = (name || '').trim();
   const profileUrl = getSoopProfileUrl(cleanName);
   const roundedClass = shape === 'square' ? 'rounded-[6px]' : 'rounded-full';
+
+  // Empty name fallback
+  if (!cleanName) {
+    return (
+      <div
+        className={`${roundedClass} border border-[#2a2a3a] bg-[#12121c] text-[#5a5a6a] flex items-center justify-center font-bold shrink-0 select-none ${className}`}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          fontSize: `${Math.max(8, Math.floor(size * 0.44))}px`,
+        }}
+        title="선수 미지정"
+      >
+        ?
+      </div>
+    );
+  }
 
   // Fallback initial
   const initial = cleanName ? cleanName.charAt(0) : '?';
