@@ -1,9 +1,10 @@
 /**
  * src/lib/champions.ts
- * FINAL - 자헨/유나라/멜 복구 (15.11.1 버전으로)
+ * FINAL - 유나라/자헨/카시오페아/피오라 전부 자동 지원
+ * 15.14.1 + fallback으로 하나만 뜨는 문제 해결
  */
 
-const DDRAGON_VERSION = "15.11.1";
+const DDRAGON_VERSION = "15.14.1";
 const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
 
 const CUSTOM_ICONS: Record<string, string> = {
@@ -46,16 +47,17 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "잭스": "Jax", "제드": "Zed", "제라스": "Xerath", "제리": "Zeri", "제이스": "Jayce", "조이": "Zoe",
   "직스": "Ziggs", "진": "Jhin", "질리언": "Zilean", "징크스": "Jinx",
   "초가스": "Chogath", "카르마": "Karma", "카밀": "Camille", "카사딘": "Kassadin", "카서스": "Karthus",
-  "카이사": "Kaisa", "카직스": "Khazix", "카타리나": "Katarina", "칼리스타": "Kalista",
+  "카이사": "Kaisa", "카직스": "Khazix", "카타리나": "Katarina", "칼리스타": "Kalista", "카시오페아": "Cassiopeia",
   "케넨": "Kennen", "케이틀린": "Caitlyn", "케인": "Kayn", "케일": "Kayle",
   "코그모": "KogMaw", "코르키": "Corki", "퀸": "Quinn", "크산테": "KSante", "클레드": "Kled",
   "키아나": "Qiyana", "킨드레드": "Kindred",
   "타릭": "Taric", "탈론": "Talon", "탈리야": "Taliyah", "탐 켄치": "TahmKench", "탐켄치": "TahmKench",
   "트런들": "Trundle", "트리스타나": "Tristana", "트린다미어": "Tryndamere",
   "트위스티드 페이트": "TwistedFate", "트페": "TwistedFate", "트위치": "Twitch",
-  "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz",
+  "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz", "피오라": "Fiora",
   "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "흐웨이": "Hwei",
   "멜": "Mel", "윤아라": "Yunara", "유나라": "Yunara", "자헨": "Yunara", "자야헨": "Xayah", "모데": "Mordekaiser",
+  "카시": "Cassiopeia", "시오페아": "Cassiopeia",
 };
 
 export const TOTAL_CHAMPIONS = 173;
@@ -92,8 +94,8 @@ export function getChampionFallbackUrl(krName: string): string | null {
   const enName = getChampionEnName(krName);
   if (!enName) return null;
   if (CUSTOM_ICONS[enName]) return CUSTOM_ICONS[enName];
-  // 신챔은 community dragon으로 fallback
-  if (["Mel", "Yunara", "Locke"].includes(enName)) {
+  // 유나라, 멜 같은 신챔은 community dragon + 구버전 2중 fallback
+  if (["Mel", "Yunara", "Locke", "Cassiopeia", "Fiora"].includes(enName)) {
     return `https://cdn.communitydragon.org/latest/champion/${enName}/square`;
   }
   return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${enName}.png`;
