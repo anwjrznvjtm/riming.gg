@@ -11,6 +11,7 @@ interface MainTabProps {
 
 type TeamRoster = Record<LineKey, string>;
 
+// --- 기본 유틸 ---
 function getPlayerPositionCounts(player: string, matches: Match[]): Record<LineKey, number> {
   const counts: Record<LineKey, number> = { top: 0, jgl: 0, mid: 0, adc: 0, sup: 0 };
   for (const m of matches) {
@@ -28,7 +29,7 @@ function getMainPosition(player: string, matches: Match[]): LineKey {
   for (const k of LINE_KEYS as LineKey[]) {
     if (counts[k] > max) { max = counts[k]; best = k; }
   }
-  return max===0 ? 'adc' : best; // 우리밍_는 ADC 고정
+  return max===0 ? (player==='우리밍_' ? 'adc' : 'mid') : best;
 }
 function getPlayerTeam(m: Match, player: string): 'Red'|'Blue'|null {
   for (const k of LINE_KEYS as LineKey[]) {
@@ -44,6 +45,18 @@ function getWinningTeam(m: any): 'Red'|'Blue'|null {
   if (wt === 'B' || wt === 'team_b') return 'Blue';
   return null;
 }
+function getIndividualWinRate(player: string, matches: Match[]): { rate:number, wins:number, total:number } {
+  let wins=0, total=0;
+  for (const m of matches) {
+    const team = getPlayerTeam(m, player);
+    if (!team) continue;
+    const winner = getWinningTeam(m);
+    if (!winner) continue;
+    total++;
+    if (team===winner) wins++;
+  }
+  return { rate: total? wins/total*100 : 50, wins, total };
+}
 function countLaneMatchups(p1: string, p2: string, lane: LineKey, matches: Match[]): number {
   let cnt = 0;
   for (const m of matches) {
@@ -53,17 +66,50 @@ function countLaneMatchups(p1: string, p2: string, lane: LineKey, matches: Match
   }
   return cnt;
 }
+function getLaneHeadToHead(p1: string, p2: string, lane: LineKey, matches: Match[]): { p1Wins:number, p2Wins:number, total:number, p1Rate:number } {
+  let p1Wins=0, p2Wins=0;
+  for (const m of matches) {
+    const a = (m.team_a?.[lane] || '').trim();
+    const b = (m.team_b?.[lane] || '').trim();
+    const wt = getWinningTeam(m);
+    if (!wt) continue;
+    if (a===p1 && b===p2) { if (wt==='Red') p1Wins++; else p2Wins++; }
+    else if (a===p2 && b===p1) { if (wt==='Red') p2Wins++; else p1Wins++; }
+  }
+  const total = p1Wins+p2Wins;
+  return { p1Wins, p2Wins, total, p1Rate: total ? p1Wins/total*100 : 50 };
+}
+function getSameTeamWinRate(p1:string,p2:string,matches:Match[]): number {
+  let wins=0, total=0;
+  for (const m of matches) {
+    const t1 = getPlayerTeam(m, p1);
+    const t2 = getPlayerTeam(m, p2);
+    if (!t1 || !t2 || t1!==t2) continue;
+    const winner = getWinningTeam(m);
+    if (!winner) continue;
+    total++;
+    if (t1===winner) wins++;
+  }
+  return total? wins/total*100 : 50;
+}
+
+// --- 맞라인 전적 기반 라인업 (랜덤으로 매번 바뀌게) ---
 function buildLaneCandidates(allStreamers: string[], matches: Match[], lane: LineKey) {
   const cands: { p1:string; p2:string; games:number }[] = [];
   const laneMains = allStreamers.filter(p => getMainPosition(p, matches) === lane);
-  const pool = laneMains.length >= 3 ? laneMains : allStreamers;
+  const pool = laneMains.length >= 4 ? laneMains : allStreamers;
   for (let i=0;i<pool.length;i++) {
     for (let j=i+1;j<pool.length;j++) {
       const games = countLaneMatchups(pool[i], pool[j], lane, matches);
       if (games > 0) cands.push({ p1: pool[i], p2: pool[j], games });
     }
   }
-  return cands.sort((a,b)=>b.games-a.games).slice(0, 20);
+  // 게임수 많은 순으로 정렬하되, 약간의 랜덤 셔플
+  cands.sort((a,b)=>b.games-a.games);
+  // 상위 8개 중에서 랜덤으로 섞기 (매번 다른 선수 나오게)
+  const top = cands.slice(0, 8);
+  for (let i=top.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [top[i], top[j]]=[top[j], top[i]]; }
+  return [...top, ...cands.slice(8)].slice(0, 20);
 }
 function findBalancedLineup(allStreamers: string[], matches: Match[]) {
   const byLane: Record<LineKey, {p1:string;p2:string;games:number}[]> = {
@@ -74,42 +120,50 @@ function findBalancedLineup(allStreamers: string[], matches: Match[]) {
     sup: buildLaneCandidates(allStreamers, matches, 'sup'),
   };
   let best: { pairs:{lane:LineKey; p1:string; p2:string; games:number}[]; total:number } | null = null;
-  function dfs(idx: number, used: Set<string>, cur: any[], total:number) {
-    if (idx === LINE_KEYS.length) {
-      if (!best || total > best.total) best = { pairs: [...cur], total };
-      return;
+  // 3번 시도해서 가장 점수 높은 거 + 랜덤성
+  for (let attempt=0; attempt<3; attempt++) {
+    const attemptBest = { pairs: [] as any[], total: -1 };
+    function dfs(idx: number, used: Set<string>, cur: any[], total:number) {
+      if (idx === LINE_KEYS.length) {
+        if (total > attemptBest.total) { attemptBest.total=total; attemptBest.pairs=[...cur]; }
+        return;
+      }
+      const lane = LINE_KEYS[idx] as LineKey;
+      const list = byLane[lane];
+      if (list.length === 0) { dfs(idx+1, used, cur, total); return; }
+      const shuffled = [...list.slice(0,6)].sort(()=>Math.random()-0.5);
+      for (const c of shuffled) {
+        if (used.has(c.p1) || used.has(c.p2)) continue;
+        used.add(c.p1); used.add(c.p2);
+        cur.push({ lane, p1:c.p1, p2:c.p2, games:c.games });
+        dfs(idx+1, used, cur, total + c.games + Math.random()*2);
+        cur.pop();
+        used.delete(c.p1); used.delete(c.p2);
+      }
     }
-    const lane = LINE_KEYS[idx] as LineKey;
-    const list = byLane[lane];
-    if (list.length === 0) { dfs(idx+1, used, cur, total); return; }
-    for (const c of list.slice(0, 6)) {
-      if (used.has(c.p1) || used.has(c.p2)) continue;
-      used.add(c.p1); used.add(c.p2);
-      cur.push({ lane, p1:c.p1, p2:c.p2, games:c.games });
-      dfs(idx+1, used, cur, total + c.games);
-      cur.pop();
-      used.delete(c.p1); used.delete(c.p2);
-      if (best && best.total > 20) break;
-    }
+    dfs(0, new Set(), [], 0);
+    if (!best || attemptBest.total > best.total) best = { pairs: attemptBest.pairs, total: attemptBest.total };
   }
-  dfs(0, new Set(), [], 0);
-  if (!best) {
+
+  if (!best || best.pairs.length===0) {
     const red: TeamRoster = { top:'', jgl:'', mid:'', adc:'', sup:'' };
     const blue: TeamRoster = { top:'', jgl:'', mid:'', adc:'', sup:'' };
     const used = new Set<string>();
+    let pool = [...allStreamers].sort(()=>Math.random()-0.5); // 랜덤
     for (const lane of LINE_KEYS as LineKey[]) {
-      const mains = allStreamers.filter(p => !used.has(p) && getMainPosition(p, matches) === lane);
-      const picks = mains.length >=2 ? mains.slice(0,2) : allStreamers.filter(p=>!used.has(p)).slice(0,2);
-      if (picks[0]) { red[lane]=picks[0]; used.add(picks[0]); }
-      if (picks[1]) { blue[lane]=picks[1]; used.add(picks[1]); }
+      const mains = pool.filter(p => !used.has(p) && getMainPosition(p, matches) === lane);
+      const picks = mains.length >=2 ? mains.slice(0,2) : pool.filter(p=>!used.has(p)).slice(0,2);
+      if (picks[0]) { red[lane]=picks[0]; used.add(picks[0]); pool=pool.filter(p=>p!==picks[0]); }
+      if (picks[1]) { blue[lane]=picks[1]; used.add(picks[1]); pool=pool.filter(p=>p!==picks[1]); }
     }
-    return { red, blue, totalGames: 0 };
+    return { red, blue, totalGames: 0, pairs: [] as any[] };
   }
+
   const red: TeamRoster = { top:'', jgl:'', mid:'', adc:'', sup:'' };
   const blue: TeamRoster = { top:'', jgl:'', mid:'', adc:'', sup:'' };
   for (const { lane, p1, p2 } of best.pairs) { red[lane]=p1; blue[lane]=p2; }
   const used = new Set([...Object.values(red), ...Object.values(blue)].filter(Boolean));
-  let remaining = allStreamers.filter(p=>!used.has(p));
+  let remaining = allStreamers.filter(p=>!used.has(p)).sort(()=>Math.random()-0.5);
   for (const lane of LINE_KEYS as LineKey[]) {
     if (!red[lane]) {
       const idx = remaining.findIndex(p=>getMainPosition(p, matches)===lane);
@@ -122,26 +176,75 @@ function findBalancedLineup(allStreamers: string[], matches: Match[]) {
       if (pick) { blue[lane]=pick; used.add(pick); }
     }
   }
-  return { red, blue, totalGames: best.total };
+  return { red, blue, totalGames: best.total, pairs: best.pairs };
 }
-function getPairRate(p1:string,p2:string,stats?:any){ if(!p1||!p2) return 50; const k1=`${p1}|${p2}`,k2=`${p2}|${p1}`; const map = stats?.pairWinrates; if(map){ if(map instanceof Map){ const d=map.get(k1)||map.get(k2); if(d){ if(typeof d==='number') return d; if(d.winRate) return d.winRate*100; if(d.rate) return d.rate; if(d.wins!=null) return d.total?d.wins/d.total*100:50; } } else { const d=(map as any)[k1]||(map as any)[k2]; if(d){ if(typeof d==='number') return d; if(d.winRate) return d.winRate*100; if(d.rate) return d.rate; } } } return 50; }
-function calcSynergy(team:TeamRoster,stats?:any){ const pls=Object.values(team).filter(Boolean); if(pls.length<2) return 50; let sum=0,cnt=0; for(let i=0;i<pls.length;i++) for(let j=i+1;j<pls.length;j++){ sum+=getPairRate(pls[i],pls[j],stats); cnt++; } return cnt?sum/cnt:50; }
-function calcWinRates(red:TeamRoster,blue:TeamRoster,stats?:any){ const sR=calcSynergy(red,stats); const sB=calcSynergy(blue,stats); const tot=sR+sB; if(!tot) return {red:50,blue:50,sR,sB}; return {red:sR/tot*100, blue:sB/tot*100, sR, sB}; }
-function findOptimal(playersByPos:Record<LineKey,[string,string]>,stats?:any){ const posList=LINE_KEYS as LineKey[]; let best:any=null, bestScore=Infinity; for(let mask=0; mask < (1<<posList.length); mask++){ const red:TeamRoster={top:'',jgl:'',mid:'',adc:'',sup:''}; const blue:TeamRoster={top:'',jgl:'',mid:'',adc:'',sup:''}; for(let i=0;i<posList.length;i++){ const p=posList[i]; const [a,b]=playersByPos[p]; if((mask & (1<<i))===0){ red[p]=a; blue[p]=b; } else { red[p]=b; blue[p]=a; } } const {red:wrR,blue:wrB,sR,sB}=calcWinRates(red,blue,stats); const score=Math.abs(wrR-wrB)*0.7+Math.abs(sR-sB)*0.3-(sR+sB)*0.01; if(score<bestScore){ bestScore=score; best={red,blue,wrR,wrB}; } } return best; }
+
+// --- 승률 계산: 개인 승률 + 맞라인 전적 + 같은팀 시너지 ---
+function calcTeamScores(red:TeamRoster, blue:TeamRoster, matches:Match[], stats?:any) {
+  let redLaneScore=0, blueLaneScore=0, redIndiv=0, blueIndiv=0, redSynergy=0, blueSynergy=0;
+  let laneGames=0, indivCount=0, synergyCount=0;
+
+  for (const lane of LINE_KEYS as LineKey[]) {
+    const r = red[lane], b = blue[lane];
+    if (!r || !b) continue;
+    const h2h = getLaneHeadToHead(r, b, lane, matches);
+    if (h2h.total>0) {
+      redLaneScore += h2h.p1Rate;
+      blueLaneScore += 100 - h2h.p1Rate;
+      laneGames++;
+    } else {
+      const rRate = getIndividualWinRate(r, matches).rate;
+      const bRate = getIndividualWinRate(b, matches).rate;
+      redLaneScore += rRate > bRate ? 55 : 45;
+      blueLaneScore += bRate > rRate ? 55 : 45;
+      laneGames++;
+    }
+  }
+
+  const redPlayers = Object.values(red).filter(Boolean);
+  const bluePlayers = Object.values(blue).filter(Boolean);
+  for (const p of redPlayers) { redIndiv += getIndividualWinRate(p, matches).rate; indivCount++; }
+  for (const p of bluePlayers) { blueIndiv += getIndividualWinRate(p, matches).rate; }
+  redIndiv = redPlayers.length ? redIndiv/redPlayers.length : 50;
+  blueIndiv = bluePlayers.length ? blueIndiv/bluePlayers.length : 50;
+
+  let rSyn=0, rCnt=0, bSyn=0, bCnt=0;
+  for (let i=0;i<redPlayers.length;i++) for (let j=i+1;j<redPlayers.length;j++) { rSyn+=getSameTeamWinRate(redPlayers[i], redPlayers[j], matches); rCnt++; }
+  for (let i=0;i<bluePlayers.length;i++) for (let j=i+1;j<bluePlayers.length;j++) { bSyn+=getSameTeamWinRate(bluePlayers[i], bluePlayers[j], matches); bCnt++; }
+  redSynergy = rCnt? rSyn/rCnt : 50;
+  blueSynergy = bCnt? bSyn/bCnt : 50;
+
+  const rLaneAvg = laneGames? redLaneScore/laneGames : 50;
+  const bLaneAvg = laneGames? blueLaneScore/laneGames : 50;
+
+  // 최종 점수: 맞라인 50% + 개인 30% + 시너지 20%
+  const redFinal = rLaneAvg*0.5 + redIndiv*0.3 + redSynergy*0.2;
+  const blueFinal = bLaneAvg*0.5 + blueIndiv*0.3 + blueSynergy*0.2;
+
+  const total = redFinal+blueFinal;
+  const redWinRate = total ? redFinal/total*100 : 50;
+  const blueWinRate = total ? blueFinal/total*100 : 50;
+
+  return { 
+    red: redWinRate, blue: blueWinRate, 
+    detail: { redLane: rLaneAvg, blueLane: bLaneAvg, redIndiv, blueIndiv, redSynergy, blueSynergy, laneGames },
+    redPlayers, bluePlayers
+  };
+}
 
 export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryModal, onToast, allStreamers }) => {
   const [redTeam, setRedTeam] = useState<TeamRoster>({ top:'', jgl:'', mid:'', adc:'', sup:'' });
   const [blueTeam, setBlueTeam] = useState<TeamRoster>({ top:'', jgl:'', mid:'', adc:'', sup:'' });
-  const [winRate, setWinRate] = useState<{red:number;blue:number;sR:number;sB:number}|null>(null);
+  const [winRate, setWinRate] = useState<ReturnType<typeof calcTeamScores>|null>(null);
+  const [showSynergyModal, setShowSynergyModal] = useState(false);
+  const [synergyDetail, setSynergyDetail] = useState<any>(null);
 
-  // 우리밍_ 기본 통계 - 이번달 기준
   const woorimingStats = useMemo(()=>{
     let wins=0, losses=0, total=0;
     let monthWins=0, monthLosses=0, monthTotal=0;
     const lineCounts: Record<LineKey, number> = { top:0, jgl:0, mid:0, adc:0, sup:0 };
     const now = new Date();
-    const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    
+    const thisMonthStr = '2026-09';
     for (const m of matches) {
       const team = getPlayerTeam(m, '우리밍_');
       if (!team) continue;
@@ -149,13 +252,11 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
       if (!winner) continue;
       total++;
       if (team===winner) wins++; else losses++;
-      
       const mMonth = (m.date||'').slice(0,7);
-      if (mMonth===thisMonthStr || mMonth==='2026-09') {
+      if (mMonth===thisMonthStr) {
         monthTotal++;
         if (team===winner) monthWins++; else monthLosses++;
       }
-      
       for (const k of LINE_KEYS as LineKey[]) {
         if ((m.team_a?.[k]||'').trim()==='우리밍_' || (m.team_b?.[k]||'').trim()==='우리밍_') lineCounts[k]++;
       }
@@ -167,7 +268,6 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
     return { wins, losses, total, winRate, monthWins, monthLosses, monthTotal, monthWinRate, mainLine: maxLine };
   }, [matches]);
 
-  // 월별 승률 - 그래프용 + 몇판 몇프로 표시
   const monthlyStats = useMemo(()=>{
     const byMonth: Record<string, {wins:number, losses:number, total:number}> = {};
     for (const m of matches) {
@@ -180,12 +280,13 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
       byMonth[month].total++;
       if (team===winner) byMonth[month].wins++; else byMonth[month].losses++;
     }
-    const sorted = Object.entries(byMonth).sort((a,b)=>a[0].localeCompare(b[0])).slice(-2);
+    const sorted = Object.entries(byMonth).sort((a,b)=>a[0].localeCompare(b[0])).slice(-3);
     return sorted.map(([month, s])=>({
       month,
       label: month.slice(5)+'월',
       rate: s.total ? Math.round(s.wins/s.total*100) : 0,
       text: `${s.total}판 ${s.total?Math.round(s.wins/s.total*100):0}%`,
+      subText: `${s.total}판 ${Math.round(s.wins/s.total*100)}%`,
       ...s
     }));
   }, [matches]);
@@ -195,9 +296,7 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
     return list.map(m=>{
       const team = getPlayerTeam(m, '우리밍_');
       const winner = getWinningTeam(m);
-      const isWin = team===winner;
-      const champ = (team==='Red' ? m.team_a_champs?.['adc'] : m.team_b_champs?.['adc']) || m.team_a_champs?.['adc'] || '';
-      return { result: isWin ? 'W' : 'L', champ };
+      return team===winner ? 'W' : 'L';
     });
   }, [matches]);
 
@@ -209,12 +308,47 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
     setRedTeam(result.red);
     setBlueTeam(result.blue);
     setWinRate(null);
-    onToast(`맞라인 전적 기반 ${result.totalGames}판 - 주포지션 고정, 중복 없이 구성`);
+    onToast(`등록 완료! ${result.totalGames>0 ? `맞라인 ${Math.round(result.totalGames)}판 전적` : '주포지션 기반'} - 매번 다른 선수로 구성`);
   }, [allStreamers, matches, onToast]);
 
-  const handleClear = useCallback(()=>{ setRedTeam({top:'',jgl:'',mid:'',adc:'',sup:''}); setBlueTeam({top:'',jgl:'',mid:'',adc:'',sup:''}); setWinRate(null); onToast('초기화 완료'); }, [onToast]);
-  const handleAnalyze = useCallback(()=>{ if(!isFull){ onToast('10명이 모두 채워져야 분석 가능합니다.'); return; } const r=calcWinRates(redTeam,blueTeam,stats); setWinRate(r); onToast(`시너지 분석: Red ${r.red.toFixed(1)}% vs Blue ${r.blue.toFixed(1)}%`); }, [isFull, redTeam, blueTeam, stats, onToast]);
-  const handleOptimal = useCallback(()=>{ if(!isFull){ onToast('10명이 모두 채워져야 최적 재배치가 가능합니다.'); return; } const byPos:Record<LineKey,[string,string]>={top:[redTeam.top,blueTeam.top],jgl:[redTeam.jgl,blueTeam.jgl],mid:[redTeam.mid,blueTeam.mid],adc:[redTeam.adc,blueTeam.adc],sup:[redTeam.sup,blueTeam.sup]}; const best=findOptimal(byPos,stats); if(best){ setRedTeam(best.red); setBlueTeam(best.blue); setWinRate({red:best.wrR,blue:best.wrB,sR:0,sB:0}); onToast(`최적 재배치 완료! Red ${best.wrR.toFixed(1)}% vs Blue ${best.wrB.toFixed(1)}%`); } }, [isFull, redTeam, blueTeam, stats, onToast]);
+  const handleClear = useCallback(()=>{ setRedTeam({top:'',jgl:'',mid:'',adc:'',sup:''}); setBlueTeam({top:'',jgl:'',mid:'',adc:'',sup:''}); setWinRate(null); setSynergyDetail(null); setShowSynergyModal(false); onToast('초기화 완료'); }, [onToast]);
+
+  const handleAnalyze = useCallback(()=>{
+    if(!isFull){ onToast('10명이 모두 채워져야 분석 가능합니다.'); return; }
+    const result = calcTeamScores(redTeam, blueTeam, matches, stats);
+    setWinRate(result);
+    setSynergyDetail(result);
+    setShowSynergyModal(true);
+    onToast(`시너지 분석: Red ${result.red.toFixed(1)}% vs Blue ${result.blue.toFixed(1)}% - 상세 창 열림`);
+  }, [isFull, redTeam, blueTeam, matches, stats, onToast]);
+
+  const handleOptimal = useCallback(()=>{
+    if(!isFull){ onToast('10명이 모두 채워져야 재배치가 가능합니다.'); return; }
+    // 32가지 조합 중 최적
+    let best:any=null, bestDiff=Infinity;
+    for (let mask=0; mask < (1<<LINE_KEYS.length); mask++) {
+      const red:TeamRoster={top:'',jgl:'',mid:'',adc:'',sup:''};
+      const blue:TeamRoster={top:'',jgl:'',mid:'',adc:'',sup:''};
+      for (let i=0;i<LINE_KEYS.length;i++) {
+        const p=LINE_KEYS[i] as LineKey;
+        const a=redTeam[p], b=blueTeam[p];
+        if ((mask & (1<<i))===0) { red[p]=a; blue[p]=b; } else { red[p]=b; blue[p]=a; }
+      }
+      const score = calcTeamScores(red, blue, matches, stats);
+      const diff = Math.abs(score.red - score.blue);
+      const avgSynergy = (score.detail.redSynergy + score.detail.blueSynergy)/2;
+      const finalScore = diff - avgSynergy*0.05; // 밸런스 좋고 시너지 높을수록 좋음
+      if (finalScore < bestDiff) { bestDiff=finalScore; best={red, blue, score}; }
+    }
+    if (best) {
+      setRedTeam(best.red);
+      setBlueTeam(best.blue);
+      setWinRate(best.score);
+      setSynergyDetail(best.score);
+      setShowSynergyModal(true);
+      onToast(`최적 재배치 완료! Red ${best.score.red.toFixed(1)}% vs Blue ${best.score.blue.toFixed(1)}% - 50/50에 가깝게 밸런스 맞춤`);
+    }
+  }, [isFull, redTeam, blueTeam, matches, stats, onToast]);
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-5">
@@ -229,7 +363,6 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
         {/* 왼쪽 */}
         <div className="space-y-5">
-          {/* 프로필 - 우 클릭시 전적 상세 */}
           <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col items-center text-center">
             <button onClick={onOpenSummaryModal} className="relative w-[110px] h-[110px] mb-4 group">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
@@ -250,47 +383,52 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
             <button onClick={onOpenSummaryModal} className="mt-4 w-full h-[36px] bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] rounded-full text-[11px] font-bold text-[#8a8aa0]">전체 전적 상세 보기</button>
           </div>
 
-          {/* 승률 추이 - 원래대로 */}
+          {/* 승률 추이 - 글씨 빼고, 세로 그래프, 3개 */}
           <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-[13px] font-bold text-white">
-                <span>📊</span> 승률 추이
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[#5a5a70]">2026 시즌</span>
-            </div>
-            
-            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl px-3 py-2.5 flex items-center justify-between mb-4">
+            <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl px-3 py-2.5 flex items-center justify-between mb-3">
               <span className="text-[11px] text-[#8a8aa0]">전체 승률</span>
               <span className="text-[12px] font-bold text-[#a78bfa]">{woorimingStats.winRate}% ({woorimingStats.wins}승 {woorimingStats.losses}패)</span>
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-[#5a5a70] mb-2"><span>월별 승률</span><span>최근 2개월</span></div>
+            <div className="flex items-center justify-between text-[10px] text-[#5a5a70] mb-2">
+              <span>월별 승률</span><span>최근 3개월</span>
+            </div>
             <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3 mb-4">
-              <div className="flex items-end gap-3 h-[70px]">
-                {(monthlyStats.length>0 ? monthlyStats : [{label:'08월', rate:36, total:11, text:'11판 36%'}, {label:'09월', rate:woorimingStats.monthWinRate, total:woorimingStats.monthTotal, text:`${woorimingStats.monthTotal}판 ${woorimingStats.monthWinRate}%`}]).map((m,i)=>(
+              {/* 세로 그래프 */}
+              <div className="flex items-end justify-around h-[100px] gap-2">
+                {(monthlyStats.length>0 ? monthlyStats : [
+                  {label:'08월', rate:39, total:28, subText:'28판 39%'},
+                  {label:'09월', rate:52, total:25, subText:'25판 52%'},
+                  {label:'10월', rate:45, total:12, subText:'12판 45%'}
+                ]).slice(-3).map((m,i,arr)=>(
                   <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
                     <div className="text-[11px] font-bold text-white">{m.rate}%</div>
-                    <div className="w-full bg-[#1e1e2a] rounded-full h-[24px] overflow-hidden relative">
-                      <div className="h-full rounded-full transition-all" style={{width:`${m.rate}%`, background: i===monthlyStats.length-1 || monthlyStats.length===0 ? '#a78bfa' : '#3a3a4a'}} />
+                    <div className="w-full flex justify-center items-end h-[60px]">
+                      <div className="w-[80%] rounded-t-lg transition-all" 
+                        style={{
+                          height: `${Math.max(10, m.rate)}%`,
+                          background: i===arr.length-1 ? '#a78bfa' : '#3a3a4a',
+                          minHeight: '8px'
+                        }} />
                     </div>
-                    <div className="text-[10px] text-[#8a8aa0] font-bold">{m.label}</div>
-                    <div className="text-[9px] text-[#5a5a70]">{m.text}</div>
+                    <div className="text-[10px] font-bold text-[#8a8aa0]">{m.label}</div>
+                    <div className="text-[9px] text-[#5a5a70]">{m.subText || `${m.total}판 ${m.rate}%`}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-[#5a5a70] mb-2"><span>최근 10경기 흐름</span><span>승(Blue) / 패(Red) - 우리밍_ 기준</span></div>
+            <div className="flex items-center justify-between text-[10px] text-[#5a5a70] mb-2"><span>최근 10경기 흐름</span><span>승(Blue) / 패(Red)</span></div>
             <div className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1e1e2a] text-[#5a5a70]">[10경기 전]</span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1e1e2a] text-[#a78bfa]">[최신 경기]</span>
               </div>
-              {/* 5x2 그리드 - 한눈에 보이게 */}
+              {/* 5x2 그리드, 승 파란색, 패 빨간색 */}
               <div className="grid grid-cols-5 gap-1.5">
-                {recentGames.map((g,i)=>(
-                  <div key={i} className={`aspect-square rounded-[10px] grid place-items-center text-[11px] font-black border ${g.result==='W'?'bg-[#3b82f6] text-white border-[#3b82f6]':'bg-[#1e1e2a] text-white/40 border-white/10'}`}>
-                    {g.result==='W' ? '승' : '패'}
+                {recentGames.map((r,i)=>(
+                  <div key={i} className={`aspect-square rounded-[10px] grid place-items-center text-[11px] font-black border text-white ${r==='W'?'bg-[#3b82f6] border-[#3b82f6]':'bg-[#ef4444] border-[#ef4444]'}`}>
+                    {r==='W' ? '승' : '패'}
                   </div>
                 ))}
                 {recentGames.length===0 && Array.from({length:10}).map((_,i)=>(
@@ -341,8 +479,24 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
               </div>
             </div>
 
-            {!isFull && <div className="mt-4 text-[11px] text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-full px-3 py-2 text-center">10명의 라인별 데이터가 모두 채워져야 시너지 분석 및 최적 재배치가 가능합니다. (현재 {Object.values(redTeam).filter(Boolean).length + Object.values(blueTeam).filter(Boolean).length}/10명)</div>}
-            {winRate && <div className="mt-4 bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3 flex items-center justify-between text-[12px]"><div className="text-[#8a8aa0]">예상 승률: Red <b className="text-[#f87171]">{winRate.red.toFixed(1)}%</b> vs Blue <b className="text-[#60a5fa]">{winRate.blue.toFixed(1)}%</b></div><div className="text-[10px] text-[#5a5a70]">맞라인 전적 • 주포지션 • 중복 없음</div></div>}
+            {winRate ? (
+              <div className="mt-4 bg-[#08080c] border border-[#1e1e2a] rounded-xl p-3">
+                <div className="flex items-center justify-between text-[12px] mb-2">
+                  <div className="text-[#8a8aa0]">예상 승률: Red <b className="text-[#f87171]">{winRate.red.toFixed(1)}%</b> vs Blue <b className="text-[#60a5fa]">{winRate.blue.toFixed(1)}%</b></div>
+                  <div className="text-[10px] text-[#5a5a70]">맞라인 {winRate.detail.laneGames}라인 • 개인 {winRate.detail.redIndiv.toFixed(0)}% vs {winRate.detail.blueIndiv.toFixed(0)}%</div>
+                </div>
+                <div className="w-full bg-[#1e1e2a] rounded-full h-2 overflow-hidden flex">
+                  <div className="h-full bg-[#ef4444]" style={{width:`${winRate.red}%`}} />
+                  <div className="h-full bg-[#3b82f6]" style={{width:`${winRate.blue}%`}} />
+                </div>
+                <div className="flex justify-between text-[9px] text-[#5a5a70] mt-1">
+                  <span>맞라인 우세 {winRate.detail.redLane.toFixed(0)}% • 시너지 {winRate.detail.redSynergy.toFixed(0)}%</span>
+                  <span>시너지 {winRate.detail.blueSynergy.toFixed(0)}% • 맞라인 {winRate.detail.blueLane.toFixed(0)}%</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 text-[11px] text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded-full px-3 py-2 text-center">10명의 라인별 데이터가 모두 채워져야 시너지 분석 및 최적 재배치가 가능합니다. (현재 {Object.values(redTeam).filter(Boolean).length + Object.values(blueTeam).filter(Boolean).length}/10명)</div>
+            )}
 
             <div className="flex gap-2 mt-4">
               <button onClick={handleAnalyze} disabled={!isFull} className={`flex-1 h-[42px] rounded-full text-[12px] font-bold border transition ${isFull?'bg-[#1e1e2a] hover:bg-[#2a2a3a] text-white border-[#2a2a3a]':'bg-[#12121a] text-[#5a5a70] border-[#1e1e2a] cursor-not-allowed'}`}>현재 팀 시너지 분석</button>
@@ -350,17 +504,15 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
             </div>
           </div>
 
-          {/* 라인별 Best 파트너 - ADC 빼고 전 라인 */}
           <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2 text-[14px] font-bold text-white"><span>🤝</span> 라인별 Best 파트너</div>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[#8a8aa0]">ADC 기준</span>
             </div>
             <div className="text-[11px] text-[#5a5a70] mb-4">2026-09 (또는 전체) 경기 기준 • 함께 이긴 승률이 가장 높은 파트너</div>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(LINE_KEYS as LineKey[]).filter(k=>k!=='adc').map(lane=>{
-                const best = stats?.bestPartners?.[lane] || { name: lane==='top'?'잎차전': lane==='jgl'?'병원': lane==='mid'?'도파': '뽀구', line: lane.toUpperCase(), wins:3, total:4, rate:75, mostChamps: lane==='top' ? [{name:'사이온', rate:100},{name:'크산테', rate:100},{name:'자크', rate:100}] : lane==='jgl' ? [{name:'삼미라', rate:100},{name:'비에고', rate:100},{name:'카이나', rate:100}] : [{name:'아리', rate:100},{name:'제드', rate:100},{name:'요네', rate:100}] };
+                const best = (stats as any)?.bestPartners?.[lane] || { name: lane==='top'?'잎차전': lane==='jgl'?'병원': lane==='mid'?'도파': '뽀구', line: lane.toUpperCase(), wins:3, total:4, rate:75, mostChamps: [] };
                 return (
                   <div key={lane} className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -372,10 +524,8 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
                     <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3"><div className="h-1 bg-[#a78bfa] rounded-full" style={{width:`${best.rate||75}%`}} /></div>
                     <div className="flex items-center justify-between text-[9px] text-[#5a5a70] mb-1.5"><span>{lane.toUpperCase()} 모스트</span><span>TOP 3</span></div>
                     <div className="flex gap-1.5 flex-wrap">
-                      {(best.mostChamps||[]).slice(0,3).map((c:any,i:number)=>(
-                        <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[9px] text-[#8a8aa0] flex items-center gap-1">
-                          <span>🏆</span> {c.name} 1판 ({c.rate||100}%)
-                        </div>
+                      {((best as any).mostChamps||[{name:'사이온', rate:100},{name:'크산테', rate:100},{name:'자크', rate:100}]).slice(0,3).map((c:any,i:number)=>(
+                        <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[9px] text-[#8a8aa0]">🏆 {c.name} 1판 ({c.rate||100}%)</div>
                       ))}
                     </div>
                   </div>
@@ -385,6 +535,52 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
           </div>
         </div>
       </div>
+
+      {/* 시너지 분석 상세 모달 - 버튼 눌렀을 때 창 뜨게 */}
+      {showSynergyModal && synergyDetail && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={()=>setShowSynergyModal(false)}>
+          <div className="bg-[#12121a] border border-[#2a2a3a] rounded-[20px] max-w-[520px] w-full p-6" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[16px] font-black text-white">팀 시너지 분석 상세</h3>
+              <button onClick={()=>setShowSynergyModal(false)} className="w-8 h-8 rounded-full bg-[#1e1e2a] grid place-items-center text-[#8a8aa0]">✕</button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-[#1a1010] border border-[#3a1e1e] rounded-xl p-3 text-center">
+                <div className="text-[11px] text-[#8a8aa0]">Red팀 예상 승률</div>
+                <div className="text-[28px] font-black text-[#f87171]">{synergyDetail.red.toFixed(1)}%</div>
+                <div className="text-[10px] text-[#5a5a70] mt-1">맞라인 {synergyDetail.detail.redLane.toFixed(0)}% + 개인 {synergyDetail.detail.redIndiv.toFixed(0)}% + 시너지 {synergyDetail.detail.redSynergy.toFixed(0)}%</div>
+              </div>
+              <div className="bg-[#101a2a] border border-[#1e2a4a] rounded-xl p-3 text-center">
+                <div className="text-[11px] text-[#8a8aa0]">Blue팀 예상 승률</div>
+                <div className="text-[28px] font-black text-[#60a5fa]">{synergyDetail.blue.toFixed(1)}%</div>
+                <div className="text-[10px] text-[#5a5a70] mt-1">맞라인 {synergyDetail.detail.blueLane.toFixed(0)}% + 개인 {synergyDetail.detail.blueIndiv.toFixed(0)}% + 시너지 {synergyDetail.detail.blueSynergy.toFixed(0)}%</div>
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-4 max-h-[200px] overflow-y-auto">
+              {LINE_KEYS.map(lane=> {
+                const r = redTeam[lane as LineKey], b = blueTeam[lane as LineKey];
+                if (!r || !b) return null;
+                const h2h = getLaneHeadToHead(r, b, lane as LineKey, matches);
+                return (
+                  <div key={lane} className="flex items-center justify-between bg-[#08080c] border border-[#1e1e2a] rounded-full px-3 py-2 text-[11px]">
+                    <span className="text-[#8a8aa0] w-[30px]">{lane.toUpperCase()}</span>
+                    <span className="text-white">{r}</span>
+                    <span className="text-[10px] text-[#a78bfa]">{h2h.total>0 ? `${h2h.p1Wins}승 ${h2h.p2Wins}패 (${h2h.p1Rate.toFixed(0)}%)` : `${getIndividualWinRate(r, matches).rate.toFixed(0)}% vs ${getIndividualWinRate(b, matches).rate.toFixed(0)}%`}</span>
+                    <span className="text-white">{b}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={()=>setShowSynergyModal(false)} className="flex-1 h-[40px] bg-[#1e1e2a] border border-[#2a2a3a] rounded-full text-[12px] font-bold text-white">닫기</button>
+              <button onClick={()=>{setShowSynergyModal(false); handleOptimal();}} className="flex-1 h-[40px] bg-[#7c3aed] rounded-full text-[12px] font-bold text-white">최적 팀으로 재배치</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <datalist id="main-players">{allStreamers.map(n=><option key={n} value={n} />)}</datalist>
     </div>
