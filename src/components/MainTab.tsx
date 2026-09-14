@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Match, LineKey, LINE_KEYS, ComputedStats } from '../types';
+import { ChampionIcon } from './ChampionIcon';
 
 interface MainTabProps {
   stats: ComputedStats;
@@ -609,9 +610,12 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
                     </div>
                     <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3"><div className="h-1 bg-[#a78bfa] rounded-full transition-all" style={{width:`${Math.min(100, best.rate||75)}%`}} /></div>
                     <div className="flex items-center justify-between text-[9px] text-[#9aa0b8] mb-1.5"><span>{lane.toUpperCase()} 모스트</span><span>TOP 3</span></div>
-                    <div className="flex gap-1.5 flex-wrap min-h-[22px]">
+                    <div className="flex gap-1.5 flex-wrap min-h-[28px]">
                       {(((best as any).mostChamps && (best as any).mostChamps.length > 0 ? (best as any).mostChamps : [{name:'사이온', rate:100},{name:'크산테', rate:100},{name:'자크', rate:100}]) as any[]).slice(0,3).map((c:any,i:number)=>(
-                        <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[9px] text-[#c2c6d6]">🏆 {c.name} 1판 ({c.rate||100}%)</div>
+                        <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[10px] text-[#c2c6d6] flex items-center gap-1.5">
+                          <ChampionIcon name={c.name} size={18} shape="circle" />
+                          <span>{c.name} {c.total ? `${c.total}판` : '1판'} ({c.rate||100}%)</span>
+                        </div>
                       ))}
                     </div>
                   </div>
