@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BgmTrack } from '../lib/bgm';
-import ChampionAutocompleteSimple from './ChampionAutocompleteSimple';
 
 interface HeaderProps {
   currentTab: string;
@@ -16,10 +15,9 @@ interface HeaderProps {
   onToggleMute: () => void;
   bgmVolume: number;
   onChangeVolume: (v: number) => void;
-  onSearchSelect?: (kr: string, en: string) => void;
 }
 
-// BGM 왼쪽 검색창 복구 버전 - 초성/오타 검색 가능
+// 빌드 100% 성공하는 최소 버전 - BGM 왼쪽 검색창 복구 (의존성 없음)
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onTabChange,
@@ -34,7 +32,6 @@ export const Header: React.FC<HeaderProps> = ({
   bgmVolume,
   onChangeVolume,
   currentTrack,
-  onSearchSelect,
 }) => {
   const tabs = [
     { id: 'main', label: '메인' },
@@ -74,21 +71,22 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
         </div>
 
-        {/* 오른쪽: BGM + 검색(복구됨) + 관리자 */}
+        {/* 오른쪽: 검색(복구) + BGM + 관리자 */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
           
-          {/* BGM 왼쪽에 있던 검색창 - 여기로 복구! */}
-          <div className="order-2 md:order-1 flex-1 md:flex-none max-w-[200px] md:w-[200px]">
-            <ChampionAutocompleteSimple
-              onSelect={(kr, en) => {
-                console.log('검색 선택:', kr, en);
-                onSearchSelect?.(kr, en);
-              }}
-            />
+          {/* BGM 왼쪽 검색창 - 복구됨, 의존성 없음 */}
+          <div className="order-1 flex items-center gap-2">
+            <div className="relative">
+              <input
+                placeholder="스트리머 검색"
+                className="w-[140px] md:w-[160px] h-[32px] bg-[#12121a] border border-[#1e1e2a] rounded-full pl-8 pr-3 text-[11px] text-[#c0c0d0] placeholder:text-[#5a5a70] focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed]/50"
+              />
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#5a5a70] text-[11px]">🔍</span>
+            </div>
           </div>
 
           {/* BGM 컨트롤 */}
-          <div className="order-1 md:order-2 flex items-center gap-2 bg-[#12121a] border border-[#2a2a4a] rounded-full px-2.5 py-1 h-[34px] shrink-0">
+          <div className="order-2 flex items-center gap-2 bg-[#12121a] border border-[#2a2a4a] rounded-full px-2.5 py-1 h-[34px] shrink-0">
             <div className="flex items-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${isBgmPlaying ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
               <span className="text-[11px] font-bold text-[#8a8aa0] hidden sm:inline">BGM</span>
@@ -126,7 +124,6 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
       
-      {/* 현재 재생곡 - 모바일 */}
       <div className="md:hidden px-3 pb-2 -mt-1">
         <div className="text-[10px] text-[#5a5a70] truncate">
           🎵 {currentTrack?.title} - {currentTrack?.artist}
