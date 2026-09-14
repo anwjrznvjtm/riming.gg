@@ -10,6 +10,7 @@ import {
   getWoorimingLine,
 } from '../lib/stats';
 import { ChampionIcon } from './ChampionIcon';
+import { StreamerAvatar } from './StreamerAvatar';
 import { parseKdaString, normalizeChampionName, SOOP_POPULAR_STREAMERS } from '../lib/champions';
 import { PASSCODE } from '../data/initialMatches';
 import {
@@ -30,7 +31,101 @@ import {
   Copy,
   FastForward,
   Swords,
+  Zap,
+  ArrowDownCircle,
 } from 'lucide-react';
+
+// ============================================================================
+// Team Check Logic: 특정 스트리머가 아군(같은 팀)인지 적팀(상대팀)인지 판별하는 조건문 함수
+// 경기 목록 데이터 구조에서 아군 팀과 적팀 명단에 해당 스트리머의 이름과 포지션이 포함되어 있는지 확인
+// ============================================================================
+export type StreamerTeamRole = 'all' | 'ally' | 'enemy';
+
+/**
+ * isSameTeam: 특정 스트리머가 해당 경기에서 우리밍_과 같은 팀(아군)이었는지 확인하는 조건문 함수
+ * @param match 경기 데이터 (team_a: Red팀 로스터, team_b: Blue팀 로스터)
+ * @param streamerName 확인할 스트리머 이름
+ * @param position (선택사항) 특정 라인/포지션 ('top' | 'jgl' | 'mid' | 'adc' | 'sup')
+ * @returns 아군 팀 소속 여부 (true/false)
+ */
+export function isSameTeam(
+  match: Match,
+  streamerName: string,
+  position?: LineKey | string
+): boolean {
+  if (!streamerName || !match) return false;
+  const target = streamerName.trim().toLowerCase();
+
+  // 우리밍_ 소속 팀 식별 ('Red' 또는 'Blue')
+  const wTeam = getWoorimingTeam(match);
+  const isWRed = wTeam === 'Red';
+
+  // 아군 팀 로스터 선택 (우리밍_이 Red팀이면 team_a, Blue팀이면 team_b)
+  const allyRoster = isWRed ? match.team_a : match.team_b;
+  if (!allyRoster) return false;
+
+  // 특정 포지션이 지정된 경우 해당 라인의 선수와 이름 비교
+  if (position) {
+    const posKey = position.toLowerCase() as LineKey;
+    const playerAtPos = String(allyRoster[posKey] || '').trim().toLowerCase();
+    return playerAtPos === target;
+  }
+
+  // 포지션이 지정되지 않은 경우 아군 전체 5개 포지션 중 하나라도 일치하는지 확인
+  return Object.values(allyRoster).some(
+    (player) => String(player || '').trim().toLowerCase() === target
+  );
+}
+
+/**
+ * isEnemyTeam: 특정 스트리머가 해당 경기에서 우리밍_과 상대팀(적팀)이었는지 확인하는 조건문 함수
+ * @param match 경기 데이터
+ * @param streamerName 확인할 스트리머 이름
+ * @param position (선택사항) 특정 라인/포지션
+ * @returns 적팀 소속 여부 (true/false)
+ */
+export function isEnemyTeam(
+  match: Match,
+  streamerName: string,
+  position?: LineKey | string
+): boolean {
+  if (!streamerName || !match) return false;
+  const target = streamerName.trim().toLowerCase();
+
+  const wTeam = getWoorimingTeam(match);
+  const isWRed = wTeam === 'Red';
+
+  // 적팀 로스터 선택 (우리밍_이 Red팀이면 상대는 team_b, Blue팀이면 상대는 team_a)
+  const enemyRoster = isWRed ? match.team_b : match.team_a;
+  if (!enemyRoster) return false;
+
+  if (position) {
+    const posKey = position.toLowerCase() as LineKey;
+    const playerAtPos = String(enemyRoster[posKey] || '').trim().toLowerCase();
+    return playerAtPos === target;
+  }
+
+  return Object.values(enemyRoster).some(
+    (player) => String(player || '').trim().toLowerCase() === target
+  );
+}
+
+/**
+ * checkStreamerTeamRole: 스트리머가 아군인지 적팀인지 판별하여 'ally' | 'enemy' | null 반환
+ */
+export function checkStreamerTeamRole(
+  match: Match,
+  streamerName: string,
+  position?: LineKey | string
+): 'ally' | 'enemy' | null {
+  if (isSameTeam(match, streamerName, position)) {
+    return 'ally';
+  }
+  if (isEnemyTeam(match, streamerName, position)) {
+    return 'enemy';
+  }
+  return null;
+}
 
 interface JournalTabProps {
   stats: ComputedStats;
@@ -44,6 +139,10 @@ interface JournalTabProps {
   onToast: (msg: string) => void;
   allStreamers: string[];
   allChampions: string[];
+  targetStreamer?: string | null;
+  targetMatchId?: string | null;
+  targetStreamerRole?: 'all' | 'ally' | 'enemy' | null;
+  onJumpToStreamer?: (streamerName: string, matchId?: string, teamRole?: 'all' | 'ally' | 'enemy') => void;
 }
 
 export const JournalTab: React.FC<JournalTabProps> = ({
@@ -58,10 +157,16 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   onToast,
   allStreamers,
   allChampions,
+  targetStreamer,
+  targetMatchId,
+  targetStreamerRole,
+  onJumpToStreamer,
 }) => {
   const [filterDate, setFilterDate] = useState('');
   const [filterName, setFilterName] = useState('');
   const [filterLine, setFilterLine] = useState('ALL');
+  const [filterStreamer, setFilterStreamer] = useState('');
+  const [filterStreamerRole, setFilterStreamerRole] = useState<'all' | 'ally' | 'enemy'>('all');
 
   const [isChampsModalOpen, setIsChampsModalOpen] = useState(false);
   const [selectedOpponent, setSelectedOpponent] = useState<OpponentStat | null>(null);
@@ -97,14 +202,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   const [deletePasscode, setDeletePasscode] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
-  // === FINAL FIX v4: 아군:적군 누적 점수 (진영 스왑 완전 대응) ===
-  const getAllyTeamDirect = (m: Match): 'Red' | 'Blue' => {
-    for (const k of LINE_KEYS) {
-      if ((m.team_a[k] || '').trim() === '우리밍_') return 'Red';
-    }
-    return 'Blue';
-  };
-
+  // === FIXED: Correct cumulative score calculation grouped by date+ck_name ===
   const correctedScoreMap = useMemo(() => {
     const groups = new Map<string, Match[]>();
     for (const m of matches) {
@@ -112,17 +210,20 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(m);
     }
+
     const map = new Map<string, string>();
     for (const [, group] of groups) {
       const sortedAsc = [...group].sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
-      let allyWins = 0;
-      let enemyWins = 0;
-      for (const mm of sortedAsc) {
-        const allyTeam = getAllyTeamDirect(mm);
-        const allyWin = mm.winning_team === allyTeam;
-        if (allyWin) allyWins++;
-        else enemyWins++;
-        map.set(mm.id, `${allyWins}:${enemyWins}`);
+      let redWins = 0;
+      let blueWins = 0;
+      for (const m of sortedAsc) {
+        if (m.winning_team === 'Red') redWins++;
+        else if (m.winning_team === 'Blue') blueWins++;
+        const wTeam = getWoorimingTeam(m);
+        const isWRed = wTeam === 'Red';
+        const allyScore = isWRed ? redWins : blueWins;
+        const enemyScore = isWRed ? blueWins : redWins;
+        map.set(m.id, `${allyScore}:${enemyScore}`);
       }
     }
     return map;
@@ -138,6 +239,13 @@ export const JournalTab: React.FC<JournalTabProps> = ({
           const line = getWoorimingLine(m);
           if (line !== filterLine) return false;
         }
+        if (filterStreamer) {
+          // Team Check Logic: 해당 선수가 아군/적팀 명단에 있는지 판별
+          const role = checkStreamerTeamRole(m, filterStreamer);
+          if (!role) return false;
+          if (filterStreamerRole === 'ally' && role !== 'ally') return false;
+          if (filterStreamerRole === 'enemy' && role !== 'enemy') return false;
+        }
         return true;
       })
       .sort((a, b) => {
@@ -148,7 +256,127 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         if (ckDiff !== 0) return ckDiff;
         return (Number(b.set_number) || 1) - (Number(a.set_number) || 1);
       });
-  }, [matches, filterDate, filterName, filterLine]);
+  }, [matches, filterDate, filterName, filterLine, filterStreamer, filterStreamerRole]);
+
+  // 스트리머 경기 영역으로 스크롤 점프 함수 (아군/적팀 Team Check Logic 적용)
+  const handleJumpToStreamer = (
+    streamerName: string,
+    specificMatchId?: string,
+    teamRole: 'all' | 'ally' | 'enemy' = 'all'
+  ) => {
+    if (!streamerName && !specificMatchId) return;
+    const cleanName = (streamerName || '').trim();
+
+    // 1. 만약 현재 필터로 인해 해당 스트리머/경기가 숨겨져 있다면 필터 재설정
+    if (cleanName) {
+      const matchExistsInAll = matches.some((m) => {
+        if (specificMatchId && m.id !== specificMatchId) return false;
+        // Team Check Logic 적용
+        const role = checkStreamerTeamRole(m, cleanName);
+        if (!role) return false;
+        if (teamRole === 'ally' && role !== 'ally') return false;
+        if (teamRole === 'enemy' && role !== 'enemy') return false;
+        return true;
+      });
+
+      if (matchExistsInAll) {
+        const isVisibleInCurrent = filteredMatches.some((m) => {
+          if (specificMatchId && m.id !== specificMatchId) return false;
+          const role = checkStreamerTeamRole(m, cleanName);
+          if (!role) return false;
+          if (teamRole === 'ally' && role !== 'ally') return false;
+          if (teamRole === 'enemy' && role !== 'enemy') return false;
+          return true;
+        });
+
+        if (!isVisibleInCurrent) {
+          setFilterDate('');
+          setFilterName('');
+          setFilterLine('ALL');
+          setFilterStreamer(cleanName);
+          setFilterStreamerRole(teamRole);
+        }
+      }
+    }
+
+    // 2. DOM에서 카드 찾아서 element.scrollIntoView({ behavior: 'smooth' }) 실행
+    const attemptScroll = (retryCount = 0) => {
+      let targetEl: HTMLElement | null = null;
+
+      if (specificMatchId) {
+        targetEl = document.getElementById(`match-${specificMatchId}`);
+      }
+
+      if (!targetEl && cleanName) {
+        const cards = Array.from(
+          document.querySelectorAll<HTMLElement>('[data-match-card], [id^="match-"]')
+        );
+
+        for (const card of cards) {
+          const allyStreamers = card.getAttribute('data-ally-streamers') || '';
+          const enemyStreamers = card.getAttribute('data-enemy-streamers') || '';
+          const allStreamers = card.getAttribute('data-streamers') || card.textContent || '';
+
+          // Team Check Logic: 아군/적팀 선수 명단 여부에 따른 매칭 조건문
+          if (teamRole === 'ally') {
+            if (allyStreamers.toLowerCase().includes(cleanName.toLowerCase())) {
+              targetEl = card;
+              break;
+            }
+          } else if (teamRole === 'enemy') {
+            if (enemyStreamers.toLowerCase().includes(cleanName.toLowerCase())) {
+              targetEl = card;
+              break;
+            }
+          } else {
+            if (allStreamers.toLowerCase().includes(cleanName.toLowerCase())) {
+              targetEl = card;
+              break;
+            }
+          }
+        }
+      }
+
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.classList.remove('match-card-highlight');
+        void targetEl.offsetWidth; // trigger reflow for css animation
+        targetEl.classList.add('match-card-highlight');
+        setTimeout(() => {
+          targetEl?.classList.remove('match-card-highlight');
+        }, 2600);
+
+        if (cleanName) {
+          if (teamRole === 'ally') {
+            onToast(`'${cleanName}' 선수와 같은 팀(아군)으로 함께한 경기 영역으로 이동했습니다 🤝`);
+          } else if (teamRole === 'enemy') {
+            onToast(`'${cleanName}' 선수가 상대팀(적팀)으로 출전한 경기 영역으로 이동했습니다 ⚔`);
+          } else {
+            onToast(`'${cleanName}' 선수의 CK 일지 경기 영역으로 이동했습니다 🎯`);
+          }
+        }
+      } else if (retryCount < 6) {
+        setTimeout(() => attemptScroll(retryCount + 1), 80);
+      }
+    };
+
+    setTimeout(() => attemptScroll(0), 40);
+
+    if (onJumpToStreamer && cleanName) {
+      onJumpToStreamer(cleanName, specificMatchId, teamRole);
+    }
+  };
+
+  // 상위(App)에서 targetStreamer나 targetMatchId가 전달되었을 때 자동 점프
+  React.useEffect(() => {
+    if (targetStreamer || targetMatchId) {
+      handleJumpToStreamer(
+        targetStreamer || '',
+        targetMatchId || undefined,
+        targetStreamerRole || 'all'
+      );
+    }
+  }, [targetStreamer, targetMatchId, targetStreamerRole]);
 
   const woorimingLocation = useMemo(() => {
     for (const teamKey of ['team_a', 'team_b'] as const) {
@@ -231,35 +459,9 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     setIsEditModalOpen(true);
   };
 
-  // Helper: 같은 날짜+CK에서 현재 세트보다 이전 세트들의 승자 목록만 추출 (자기 자신 제외)
-  const getPrevWinnersForEdit = (target: Match, all: Match[]): ('Red' | 'Blue')[] => {
-    const sameSeries = all
-      .filter(
-        (x) =>
-          String(x.id) !== String(target.id) &&
-          x.date === target.date &&
-          (x.ck_name || '').trim() === (target.ck_name || '').trim() &&
-          (Number(x.set_number) || 1) < (Number(target.set_number) || 1)
-      )
-      .sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
-    return sameSeries.map((x) => x.winning_team as 'Red' | 'Blue');
-  };
-
   const handleOpenEditModal = (m: Match) => {
-    // FIX v6: 이전 세트 승자들만 추출 (자기 자신 제외)
-    const prevWinners = getPrevWinnersForEdit(m, matches);
-    setSeriesWinners(prevWinners);
-
-    // FIX v6: 모달 열 때 점수를 즉시 재계산해서 1세트가 3:0으로 뜨는 버그 방지
-    const prevRed = prevWinners.filter((w) => w === 'Red').length;
-    const prevBlue = prevWinners.filter((w) => w === 'Blue').length;
-    const redWins = prevRed + (m.winning_team === 'Red' ? 1 : 0);
-    const blueWins = prevBlue + (m.winning_team === 'Blue' ? 1 : 0);
-    const fixedScore = `${redWins}:${blueWins}`;
-
     setFormData({
       ...m,
-      score: fixedScore,
       team_a: { ...m.team_a },
       team_b: { ...m.team_b },
       team_a_champs: { ...m.team_a_champs },
@@ -276,57 +478,24 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   };
 
   // FIXED: Winner selection - calculate from actual same-series matches, not just state
-    // FIX v7: 승리 선택 시 state에 의존하지 않고 매번 이전 세트 승자를 다시 계산 (3:0 버그 근본 해결)
   const handleSelectWinner = (winner: 'Red' | 'Blue') => {
-    // 현재 폼의 날짜/CK/세트번호 기준으로 이전 세트들만 다시 계산
-    const currentDate = formData.date;
-    const currentCk = (formData.ck_name || '').trim();
-    const currentSetNum = (() => {
-      const raw = formData.set_number;
-      if (typeof raw === 'number') return raw;
-      const num = parseInt(String(raw).replace(/[^0-9]/g, ''), 10);
-      return isNaN(num) ? 1 : num;
-    })();
-
-    const prevWinnersDynamic = matches
-      .filter((x) => {
-        if (editingMatch && String(x.id) === String(editingMatch.id)) return false;
-        if (x.date !== currentDate) return false;
-        if ((x.ck_name || '').trim() !== currentCk) return false;
-        const xSetNum = (() => {
-          const r = (x as any).set_number;
-          if (typeof r === 'number') return r;
-          const n = parseInt(String(r).replace(/[^0-9]/g, ''), 10);
-          return isNaN(n) ? 1 : n;
-        })();
-        return xSetNum < currentSetNum;
-      })
-      .sort((a, b) => {
-        const aNum = typeof (a as any).set_number === 'number' ? (a as any).set_number : parseInt(String((a as any).set_number).replace(/[^0-9]/g, ''), 10) || 1;
-        const bNum = typeof (b as any).set_number === 'number' ? (b as any).set_number : parseInt(String((b as any).set_number).replace(/[^0-9]/g, ''), 10) || 1;
-        return aNum - bNum;
-      })
-      .map((x) => x.winning_team as 'Red' | 'Blue');
-
-    const baseWinners = prevWinnersDynamic.length > 0 ? prevWinnersDynamic : seriesWinners.filter((w) => {
-      // fallback: seriesWinners가 이미 이전 세트만 담고 있으면 그대로 사용 (신규 등록 시)
-      return true;
-    }).slice(0, currentSetNum - 1);
-
-    // 최종적으로 이전 세트 + 현재 선택으로 누적 계산 (v7 핵심)
-    const prevRed = baseWinners.filter((w) => w === 'Red').length;
-    const prevBlue = baseWinners.filter((w) => w === 'Blue').length;
-    // 신규 등록 모드에서는 seriesWinners가 이전 세트 전부이므로, 수정 모드에서는 동적 계산한 prevWinnersDynamic 사용
-    const usePrev = editingMatch ? prevWinnersDynamic : seriesWinners;
-    const pRed = usePrev.filter((w) => w === 'Red').length;
-    const pBlue = usePrev.filter((w) => w === 'Blue').length;
-    const redWins = pRed + (winner === 'Red' ? 1 : 0);
-    const blueWins = pBlue + (winner === 'Blue' ? 1 : 0);
+    const sameSeries = matches
+      .filter((m) => m.date === formData.date && m.ck_name.trim() === formData.ck_name.trim() && m.id !== formData.id)
+      .sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
+    
+    let red = 0;
+    let blue = 0;
+    for (const m of sameSeries) {
+      if (m.winning_team === 'Red') red++;
+      else blue++;
+    }
+    if (winner === 'Red') red++;
+    else blue++;
 
     setFormData((prev) => ({
       ...prev,
       winning_team: winner,
-      score: `${redWins}:${blueWins}`,
+      score: `${red}:${blue}`,
     }));
     setFormError('');
   };
@@ -629,6 +798,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="text-[11px] text-[#6a6a80] font-bold w-[14px]">{idx + 1}</span>
+                      <StreamerAvatar name={item.name} size={22} shape="circle" />
                       <span className="text-[13px] font-semibold text-white group-hover:text-[#a78bfa] transition-colors">
                         {item.name}
                       </span>
@@ -636,7 +806,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                         {item.primaryLine}
                       </span>
                     </div>
-                    <div className="text-right flex items-center gap-2.5">
+                    <div className="text-right flex items-center gap-2">
                       <span className="text-[11px] text-[#8a8aa0]">
                         {item.games}전 {item.wins}승 {item.losses}패
                       </span>
@@ -651,6 +821,18 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                       >
                         {item.winrate.toFixed(0)}%
                       </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleJumpToStreamer(item.name, undefined, 'enemy');
+                        }}
+                        className="px-2 py-0.5 rounded bg-[#8b5cf6]/15 hover:bg-[#8b5cf6] text-[#c4b5fd] hover:text-white border border-[#8b5cf6]/30 text-[10px] font-bold transition flex items-center gap-1 shrink-0 ml-0.5"
+                        title={`${item.name} 선수가 상대팀(적팀)으로 출전한 경기 영역으로 이동`}
+                      >
+                        <span>일지 이동</span>
+                        <Zap size={10} />
+                      </button>
                     </div>
                   </div>
                 ))
@@ -737,6 +919,92 @@ export const JournalTab: React.FC<JournalTabProps> = ({
             <option value="ADC">ADC</option>
             <option value="SUP">SUP</option>
           </select>
+
+          {/* 스트리머 검색/필터 */}
+          <div className="relative">
+            <input
+              value={filterStreamer}
+              onChange={(e) => setFilterStreamer(e.target.value)}
+              placeholder="스트리머 필터"
+              list="journal-streamers-list"
+              className="h-[36px] bg-[#08080c] border border-[#1e1e2a] focus:border-[#8b5cf6]/60 rounded-full pl-3.5 pr-7 text-[12px] w-[130px] placeholder:text-[#5a5a6a] text-white focus:outline-none"
+            />
+            {filterStreamer && (
+              <button
+                type="button"
+                onClick={() => setFilterStreamer('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#7a7a90] hover:text-white"
+                title="스트리머 필터 지우기"
+              >
+                <X size={12} />
+              </button>
+            )}
+            <datalist id="journal-streamers-list">
+              {allStreamers.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </div>
+
+          {filterStreamer && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 rounded-full text-[11px] text-[#c4b5fd]">
+                <span>선수: <strong>{filterStreamer}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterStreamer('');
+                    setFilterStreamerRole('all');
+                  }}
+                  className="hover:text-white ml-0.5"
+                  title="선수 필터 초기화"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+
+              {/* Team Role Check Selector */}
+              <div className="flex items-center bg-[#08080c] border border-[#1e1e2a] rounded-full p-0.5 text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setFilterStreamerRole('all')}
+                  className={`px-2.5 py-1 rounded-full transition ${
+                    filterStreamerRole === 'all'
+                      ? 'bg-[#8b5cf6] text-white shadow-sm'
+                      : 'text-[#8a8aa0] hover:text-white'
+                  }`}
+                >
+                  전체 ({matches.filter((m) => checkStreamerTeamRole(m, filterStreamer)).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterStreamerRole('ally')}
+                  className={`px-2.5 py-1 rounded-full transition flex items-center gap-1 ${
+                    filterStreamerRole === 'ally'
+                      ? 'bg-[#3b82f6] text-white shadow-sm'
+                      : 'text-[#8a8aa0] hover:text-[#60a5fa]'
+                  }`}
+                  title="우리밍_과 같은 팀(아군)이었던 경기만 표시"
+                >
+                  <span>🤝 아군</span>
+                  <span>({matches.filter((m) => checkStreamerTeamRole(m, filterStreamer) === 'ally').length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterStreamerRole('enemy')}
+                  className={`px-2.5 py-1 rounded-full transition flex items-center gap-1 ${
+                    filterStreamerRole === 'enemy'
+                      ? 'bg-[#ef4444] text-white shadow-sm'
+                      : 'text-[#8a8aa0] hover:text-[#f87171]'
+                  }`}
+                  title="우리밍_과 상대팀(적팀)이었던 경기만 표시"
+                >
+                  <span>⚔ 적팀</span>
+                  <span>({matches.filter((m) => checkStreamerTeamRole(m, filterStreamer) === 'enemy').length})</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
@@ -758,7 +1026,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
           </div>
         ) : (
           filteredMatches.map((m) => {
-            const wTeam = getAllyTeamDirect(m);
+            const wTeam = getWoorimingTeam(m);
             const wRoster = wTeam === 'Red' ? m.team_a : m.team_b;
             const wChamps = wTeam === 'Red' ? m.team_a_champs : m.team_b_champs;
             const wKdas = wTeam === 'Red' ? m.team_a_kda : m.team_b_kda;
@@ -806,6 +1074,11 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               <div
                 key={m.id}
                 id={`match-${m.id}`}
+                data-match-card="true"
+                data-match-id={m.id}
+                data-streamers={`${Object.values(m.team_a || {}).join(' ')} ${Object.values(m.team_b || {}).join(' ')}`}
+                data-ally-streamers={Object.values(allyRoster || {}).join(' ')}
+                data-enemy-streamers={Object.values(enemyRoster || {}).join(' ')}
                 className={`relative rounded-xl border ${cardBorderClass} ${cardBgClass} transition-all duration-200 overflow-hidden group`}
               >
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${accentBarClass}`} />
@@ -948,7 +1221,16 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                               </span>
                               <span className="whitespace-nowrap flex items-center gap-1">
                                 {isW && <span className="text-[#fbbf24] text-[11px]">👑</span>}
-                                <span className={isW ? 'text-[#f5d0fe] font-black' : ''}>
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (pName) handleJumpToStreamer(pName, undefined, 'ally');
+                                  }}
+                                  className={`cursor-pointer hover:underline hover:text-[#a78bfa] transition-colors ${
+                                    isW ? 'text-[#f5d0fe] font-black' : ''
+                                  }`}
+                                  title={`${pName} 선수와 같은 팀(아군)으로 함께한 경기 영역으로 이동`}
+                                >
                                   {pName || '-'}
                                 </span>
                               </span>
@@ -987,7 +1269,16 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                               <span className="text-[#6a6a80] text-[10px] font-semibold w-[22px] shrink-0">
                                 {LINE_LABELS[k]}
                               </span>
-                              <span className="whitespace-nowrap">{pName || '-'}</span>
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (pName) handleJumpToStreamer(pName, undefined, 'enemy');
+                                }}
+                                className="whitespace-nowrap cursor-pointer hover:underline hover:text-[#a78bfa] transition-colors"
+                                title={`${pName} 선수가 상대팀(적팀)으로 출전한 경기 영역으로 이동`}
+                              >
+                                {pName || '-'}
+                              </span>
                             </div>
                           );
                         })}
@@ -1594,9 +1885,12 @@ export const JournalTab: React.FC<JournalTabProps> = ({
           <div className="w-full max-w-[640px] bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex justify-between items-center pb-4 border-b border-[#1e1e2a]">
               <div className="flex items-center gap-3">
-                <div className="w-[42px] h-[42px] rounded-full bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 flex items-center justify-center text-[18px]">
-                  ⚔
-                </div>
+                <StreamerAvatar
+                  name={selectedOpponent.name}
+                  size={44}
+                  shape="circle"
+                  className="border-2 border-[#8b5cf6]/50 shadow-md shrink-0"
+                />
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-[17px] text-white">{selectedOpponent.name}</h3>
@@ -1609,14 +1903,28 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOpponent(null)}
-                className="w-[32px] h-[32px] bg-[#1e1e2a] hover:bg-[#2a2a3a] rounded-full flex items-center justify-center text-[#a0a0b8] hover:text-white transition"
-              >
-                <X size={16} />
-              </button>
-            </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const oppName = selectedOpponent.name;
+                      setSelectedOpponent(null);
+                      handleJumpToStreamer(oppName, undefined, 'enemy');
+                    }}
+                    className="h-[30px] px-3 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6] text-[#c4b5fd] hover:text-white border border-[#8b5cf6]/40 rounded-full text-[11px] font-bold flex items-center gap-1.5 transition"
+                  >
+                    <Zap size={12} />
+                    <span>일지에서 경기 보기 ⚡</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOpponent(null)}
+                    className="w-[32px] h-[32px] bg-[#1e1e2a] hover:bg-[#2a2a3a] rounded-full flex items-center justify-center text-[#a0a0b8] hover:text-white transition"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
 
             <div className="overflow-y-auto my-4 space-y-2.5 pr-1 max-h-[480px]">
               {selectedOpponent.matches.map((m, idx) => (
@@ -1666,6 +1974,20 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                         세트 스코어 {m.score}
                       </span>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const matchId = m.matchId;
+                        const oppName = selectedOpponent.name;
+                        setSelectedOpponent(null);
+                        handleJumpToStreamer(oppName, matchId, 'enemy');
+                      }}
+                      className="mt-1.5 px-2.5 py-1 bg-[#1e1e30] hover:bg-[#8b5cf6] text-[#c0c0d8] hover:text-white rounded-md text-[10px] font-bold border border-[#2a2a44] transition flex items-center gap-1"
+                      title="CK 일지의 해당 경기 카드로 스크롤 이동"
+                    >
+                      <span>이 세트로 이동</span>
+                      <ArrowDownCircle size={11} />
+                    </button>
                   </div>
                 </div>
               ))}
