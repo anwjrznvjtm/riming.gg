@@ -16,11 +16,9 @@ export const ChampionIcon: React.FC<Props> = ({ name, size = 24, shape = "circle
     return <div style={{ width: size, height: size }} className="bg-[#1e1e2a] rounded-full" />;
   }
 
-  // lib/champions.ts의 매핑 사용 (올라프, 노틸러스, 벡스, 아크샨 포함)
   const url = getChampionIconUrl(cleanName);
   const enName = getChampionEnName(cleanName);
 
-  // 매핑 실패 또는 이미지 로드 실패시 텍스트 아이콘
   if (failed || !url || !enName) {
     return (
       <div
