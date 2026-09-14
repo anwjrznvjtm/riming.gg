@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Match, LineKey, LINE_KEYS, ComputedStats } from '../types';
 import { ChampionIcon } from './ChampionIcon';
-import { StreamerAvatar } from './StreamerAvatar';
 
 interface MainTabProps {
   stats: ComputedStats;
@@ -554,12 +553,9 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
                 {(LINE_KEYS as LineKey[]).map(pos=>(
                   <div key={`red-${pos}`} className="flex items-center gap-3 mb-2.5">
                     <div className="w-[36px] text-[11px] font-bold text-[#c2c6d6] uppercase">{pos}</div>
-                    <div className="flex items-center gap-2 flex-1">
-                      {redTeam[pos] && <StreamerAvatar name={redTeam[pos]} size={28} />}
-                      <div className="flex-1 relative">
-                        <input list="main-players" value={redTeam[pos]} onChange={e=>{ setRedTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }} placeholder="스트리머 이름" className="w-full h-[36px] bg-[#08080c] border border-[#2a1e1e] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#ef4444]/50" />
-                        {redTeam[pos] && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#2a1e1e] text-[#c2c6d6]">주:{playerMainPos.get(redTeam[pos])?.toUpperCase()||'-'}</span>}
-                      </div>
+                    <div className="flex-1 relative">
+                      <input list="main-players" value={redTeam[pos]} onChange={e=>{ setRedTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }} placeholder="스트리머 이름" className="w-full h-[36px] bg-[#08080c] border border-[#2a1e1e] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#ef4444]/50" />
+                      {redTeam[pos] && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#2a1e1e] text-[#c2c6d6]">주:{playerMainPos.get(redTeam[pos])?.toUpperCase()||'-'}</span>}
                     </div>
                   </div>
                 ))}
@@ -569,12 +565,9 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
                 {(LINE_KEYS as LineKey[]).map(pos=>(
                   <div key={`blue-${pos}`} className="flex items-center gap-3 mb-2.5">
                     <div className="w-[36px] text-[11px] font-bold text-[#c2c6d6] uppercase">{pos}</div>
-                    <div className="flex items-center gap-2 flex-1">
-                      {blueTeam[pos] && <StreamerAvatar name={blueTeam[pos]} size={28} />}
-                      <div className="flex-1 relative">
-                        <input list="main-players" value={blueTeam[pos]} onChange={e=>{ setBlueTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }} placeholder="스트리머 이름" className="w-full h-[36px] bg-[#08080c] border border-[#1e2a4a] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#3b82f6]/50" />
-                        {blueTeam[pos] && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e2a4a] text-[#c2c6d6]">주:{playerMainPos.get(blueTeam[pos])?.toUpperCase()||'-'}</span>}
-                      </div>
+                    <div className="flex-1 relative">
+                      <input list="main-players" value={blueTeam[pos]} onChange={e=>{ setBlueTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }} placeholder="스트리머 이름" className="w-full h-[36px] bg-[#08080c] border border-[#1e2a4a] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#3b82f6]/50" />
+                      {blueTeam[pos] && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e2a4a] text-[#c2c6d6]">주:{playerMainPos.get(blueTeam[pos])?.toUpperCase()||'-'}</span>}
                     </div>
                   </div>
                 ))}
@@ -624,9 +617,8 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
                       <span className="text-[11px] font-bold text-[#c2c6d6]">{lane.toUpperCase()} 라인 Best</span>
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e1e2a] text-[#9aa0b8]">이번달</span>
                     </div>
-                    <div className="flex items-center gap-2 text-[12px] font-bold text-white truncate">
-                      {best.name !== '데이터 없음' && <StreamerAvatar name={best.name} size={28} />}
-                      <span>{best.name !== '데이터 없음' ? `${best.name} (${best.line||lane.toUpperCase()})` : '아직 함께한 전적 없음'}</span>
+                    <div className="text-[12px] font-bold text-white truncate">
+                      {best.name !== '데이터 없음' ? `${best.name} (${best.line||lane.toUpperCase()})` : '아직 함께한 전적 없음'} 
                       <span className="text-[#a78bfa] ml-1">{best.total>0 ? `${best.rate}%` : ''}</span>
                     </div>
                     <div className="text-[11px] text-[#c2c6d6] mb-2">
