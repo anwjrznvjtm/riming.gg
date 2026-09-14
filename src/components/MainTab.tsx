@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Match, LineKey, LINE_KEYS, ComputedStats } from '../types';
+import { Match, LineKey, LINE_KEYS } from '../types';
+import { ComputedStats } from '../lib/stats';
 import { ChampionIcon } from './ChampionIcon';
+import { StreamerAvatar } from './StreamerAvatar';
+import { Zap } from 'lucide-react';
 
 interface MainTabProps {
   stats: ComputedStats;
@@ -8,6 +11,7 @@ interface MainTabProps {
   onOpenSummaryModal: () => void;
   onToast: (msg: string) => void;
   allStreamers: string[];
+  onJumpToStreamer?: (streamerName: string, matchId?: string, teamRole?: 'all' | 'ally' | 'enemy') => void;
 }
 
 type TeamRoster = Record<LineKey, string>;
@@ -233,7 +237,14 @@ function calcTeamScores(red:TeamRoster, blue:TeamRoster, matches:Match[], stats?
   };
 }
 
-export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryModal, onToast, allStreamers }) => {
+export const MainTab: React.FC<MainTabProps> = ({
+  stats,
+  matches,
+  onOpenSummaryModal,
+  onToast,
+  allStreamers,
+  onJumpToStreamer,
+}) => {
   const [redTeam, setRedTeam] = useState<TeamRoster>({ top:'', jgl:'', mid:'', adc:'', sup:'' });
   const [blueTeam, setBlueTeam] = useState<TeamRoster>({ top:'', jgl:'', mid:'', adc:'', sup:'' });
   const [winRate, setWinRate] = useState<ReturnType<typeof calcTeamScores>|null>(null);
@@ -375,6 +386,48 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
           mostChamps
         };
       }
+    }
+    return result;
+  }, [matches, allStreamers]);
+
+  // 라인별 파트너 전체 순위 계산 (우리밍_과 함께한 승률 및 전적 기준)
+  const lanePartnerRankings = useMemo(() => {
+    const result: Record<string, Array<{ name: string; wins: number; total: number; rate: number }>> = {};
+    const target = '우리밍_';
+
+    for (const lane of LINE_KEYS as LineKey[]) {
+      if (lane === 'adc') continue;
+      const list: Array<{ name: string; wins: number; total: number; rate: number }> = [];
+
+      for (const player of allStreamers) {
+        if (player === target) continue;
+        const mainPos = getMainPosition(player, matches);
+        if (mainPos !== lane) continue;
+
+        let wins = 0;
+        let total = 0;
+        for (const m of matches) {
+          const t1 = getPlayerTeam(m, target);
+          const t2 = getPlayerTeam(m, player);
+          if (!t1 || !t2 || t1 !== t2) continue;
+          const winner = getWinningTeam(m);
+          if (!winner) continue;
+          total++;
+          if (t1 === winner) wins++;
+        }
+
+        if (total > 0) {
+          list.push({
+            name: player,
+            wins,
+            total,
+            rate: Math.round((wins / total) * 100),
+          });
+        }
+      }
+
+      list.sort((a, b) => b.rate - a.rate || b.wins - a.wins || b.total - a.total);
+      result[lane] = list;
     }
     return result;
   }, [matches, allStreamers]);
@@ -549,25 +602,59 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#1a1010]/50 border border-[#3a1e1e] rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3"><div className="w-2.5 h-2.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444]" /><span className="text-[12px] font-black text-[#f87171]">Red팀</span>{winRate && <span className="ml-auto text-[13px] font-black text-[#f87171]">{winRate.red.toFixed(1)}%</span>}</div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444]" />
+                  <span className="text-[12px] font-black text-[#f87171]">Red팀</span>
+                  {winRate && <span className="ml-auto text-[13px] font-black text-[#f87171]">{winRate.red.toFixed(1)}%</span>}
+                </div>
                 {(LINE_KEYS as LineKey[]).map(pos=>(
-                  <div key={`red-${pos}`} className="flex items-center gap-3 mb-2.5">
-                    <div className="w-[36px] text-[11px] font-bold text-[#c2c6d6] uppercase">{pos}</div>
+                  <div key={`red-${pos}`} className="flex items-center gap-2.5 mb-2.5">
+                    <div className="w-[38px] h-[34px] rounded-lg bg-[#ef4444]/15 border border-[#ef4444]/30 text-[11px] font-black text-[#f87171] uppercase flex items-center justify-center shrink-0">
+                      {pos}
+                    </div>
+                    <StreamerAvatar name={redTeam[pos]} size={30} shape="circle" className="border border-[#ef4444]/40 shrink-0" />
                     <div className="flex-1 relative">
-                      <input list="main-players" value={redTeam[pos]} onChange={e=>{ setRedTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }} placeholder="스트리머 이름" className="w-full h-[36px] bg-[#08080c] border border-[#2a1e1e] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#ef4444]/50" />
-                      {redTeam[pos] && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#2a1e1e] text-[#c2c6d6]">주:{playerMainPos.get(redTeam[pos])?.toUpperCase()||'-'}</span>}
+                      <input
+                        list="main-players"
+                        value={redTeam[pos]}
+                        onChange={e=>{ setRedTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }}
+                        placeholder="스트리머 이름"
+                        className="w-full h-[36px] bg-[#08080c] border border-[#2a1e1e] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#ef4444]/70 transition-colors"
+                      />
+                      {redTeam[pos] && (
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#2a1e1e] text-[#c2c6d6] border border-[#3a2020]">
+                          주:{playerMainPos.get(redTeam[pos])?.toUpperCase()||'-'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
               <div className="bg-[#101a2a]/50 border border-[#1e2a4a] rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3"><div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shadow-[0_0_8px_#3b82f6]" /><span className="text-[12px] font-black text-[#60a5fa]">Blue팀</span>{winRate && <span className="ml-auto text-[13px] font-black text-[#60a5fa]">{winRate.blue.toFixed(1)}%</span>}</div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shadow-[0_0_8px_#3b82f6]" />
+                  <span className="text-[12px] font-black text-[#60a5fa]">Blue팀</span>
+                  {winRate && <span className="ml-auto text-[13px] font-black text-[#60a5fa]">{winRate.blue.toFixed(1)}%</span>}
+                </div>
                 {(LINE_KEYS as LineKey[]).map(pos=>(
-                  <div key={`blue-${pos}`} className="flex items-center gap-3 mb-2.5">
-                    <div className="w-[36px] text-[11px] font-bold text-[#c2c6d6] uppercase">{pos}</div>
+                  <div key={`blue-${pos}`} className="flex items-center gap-2.5 mb-2.5">
+                    <div className="w-[38px] h-[34px] rounded-lg bg-[#3b82f6]/15 border border-[#3b82f6]/30 text-[11px] font-black text-[#60a5fa] uppercase flex items-center justify-center shrink-0">
+                      {pos}
+                    </div>
+                    <StreamerAvatar name={blueTeam[pos]} size={30} shape="circle" className="border border-[#3b82f6]/40 shrink-0" />
                     <div className="flex-1 relative">
-                      <input list="main-players" value={blueTeam[pos]} onChange={e=>{ setBlueTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }} placeholder="스트리머 이름" className="w-full h-[36px] bg-[#08080c] border border-[#1e2a4a] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#3b82f6]/50" />
-                      {blueTeam[pos] && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e2a4a] text-[#c2c6d6]">주:{playerMainPos.get(blueTeam[pos])?.toUpperCase()||'-'}</span>}
+                      <input
+                        list="main-players"
+                        value={blueTeam[pos]}
+                        onChange={e=>{ setBlueTeam(p=>({...p,[pos]:e.target.value})); setWinRate(null); }}
+                        placeholder="스트리머 이름"
+                        className="w-full h-[36px] bg-[#08080c] border border-[#1e2a4a] rounded-full px-4 text-[12px] text-white placeholder:text-[#9aa0b8] focus:outline-none focus:border-[#3b82f6]/70 transition-colors"
+                      />
+                      {blueTeam[pos] && (
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e2a4a] text-[#c2c6d6] border border-[#203050]">
+                          주:{playerMainPos.get(blueTeam[pos])?.toUpperCase()||'-'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -611,28 +698,85 @@ export const MainTab: React.FC<MainTabProps> = ({ stats, matches, onOpenSummaryM
                 const real = realBestPartners[lane];
                 const statBest = (stats as any)?.bestPartners?.[lane];
                 const best = real || statBest || { name: '데이터 없음', line: lane.toUpperCase(), wins:0, total:0, rate:0, mostChamps: [] };
+                const laneRankers = lanePartnerRankings[lane] || [];
                 return (
                   <div key={lane} className="bg-[#08080c] border border-[#1e1e2a] rounded-xl p-4 flex flex-col">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold text-[#c2c6d6]">{lane.toUpperCase()} 라인 Best</span>
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#1e1e2a] text-[#9aa0b8]">이번달</span>
                     </div>
-                    <div className="text-[12px] font-bold text-white truncate">
-                      {best.name !== '데이터 없음' ? `${best.name} (${best.line||lane.toUpperCase()})` : '아직 함께한 전적 없음'} 
-                      <span className="text-[#a78bfa] ml-1">{best.total>0 ? `${best.rate}%` : ''}</span>
-                    </div>
-                    <div className="text-[11px] text-[#c2c6d6] mb-2">
-                      {best.total>0 ? `${best.total}전 ${best.wins}승 ${best.total-best.wins}패` : 'CK일지에 함께한 경기가 없습니다'}
-                    </div>
-                    <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3"><div className="h-1 bg-[#a78bfa] rounded-full transition-all" style={{width:`${Math.min(100, best.rate||75)}%`}} /></div>
-                    <div className="flex items-center justify-between text-[9px] text-[#9aa0b8] mb-1.5"><span>{lane.toUpperCase()} 모스트</span><span>TOP 3</span></div>
-                    <div className="flex gap-1.5 flex-wrap min-h-[28px]">
-                      {(((best as any).mostChamps && (best as any).mostChamps.length > 0 ? (best as any).mostChamps : [{name:'사이온', rate:100},{name:'크산테', rate:100},{name:'자크', rate:100}]) as any[]).slice(0,3).map((c:any,i:number)=>(
-                        <div key={i} className="px-2 py-1 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] text-[10px] text-[#c2c6d6] flex items-center gap-1.5">
-                          <ChampionIcon name={c.name} size={18} shape="circle" />
-                          <span>{c.name} {c.total ? `${c.total}판` : '1판'} ({c.rate||100}%)</span>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <StreamerAvatar
+                          name={best.name !== '데이터 없음' ? best.name : ''}
+                          size={36}
+                          shape="circle"
+                          className="border-2 border-[#8b5cf6]/50 shadow-md shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-[12px] font-bold text-white truncate">
+                            {best.name !== '데이터 없음' ? `${best.name} (${best.line||lane.toUpperCase()})` : '아직 함께한 전적 없음'} 
+                            <span className="text-[#a78bfa] ml-1">{best.total>0 ? `${best.rate}%` : ''}</span>
+                          </div>
+                          <div className="text-[11px] text-[#8a8aa0]">
+                            {best.total>0 ? `${best.total}전 ${best.wins}승 ${best.total-best.wins}패` : 'CK일지에 함께한 경기가 없습니다'}
+                          </div>
                         </div>
-                      ))}
+                      </div>
+                      {best.name !== '데이터 없음' && onJumpToStreamer && (
+                        <button
+                          type="button"
+                          onClick={() => onJumpToStreamer(best.name, undefined, 'ally')}
+                          className="px-2 py-0.5 rounded bg-[#8b5cf6]/20 hover:bg-[#8b5cf6] text-[#c4b5fd] hover:text-white border border-[#8b5cf6]/35 text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          title={`${best.name} 선수와 같은 팀(아군)으로 함께한 CK 일지 경기 영역으로 이동`}
+                        >
+                          <span>일지 이동</span>
+                          <Zap size={10} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="w-full bg-[#1e1e2a] rounded-full h-1 mb-3">
+                      <div className="h-1 bg-[#a78bfa] rounded-full transition-all" style={{width:`${Math.min(100, best.rate||75)}%`}} />
+                    </div>
+                    
+                    {/* 라인별 파트너 순위표 (SOOP 방송국 프로필 아바타 적용) */}
+                    <div className="flex items-center justify-between text-[9px] text-[#9aa0b8] mb-1.5">
+                      <span>{lane.toUpperCase()} 파트너 순위</span>
+                      <span>승률 / 전적</span>
+                    </div>
+                    <div className="space-y-1.5 min-h-[58px]">
+                      {laneRankers.length > 0 ? (
+                        laneRankers.slice(0, 3).map((p, idx) => (
+                          <div
+                            key={p.name}
+                            onClick={() => onJumpToStreamer && onJumpToStreamer(p.name, undefined, 'ally')}
+                            className="px-2.5 py-1.5 rounded-lg bg-[#12121c] hover:bg-[#1a1a2c] border border-[#1e1e2a] hover:border-[#8b5cf6]/40 flex items-center justify-between transition-colors cursor-pointer"
+                            title={`${p.name} 선수의 아군 경기 영역으로 이동`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`text-[10px] font-black w-3.5 text-center ${idx === 0 ? 'text-[#a78bfa]' : 'text-[#8a8aa0]'}`}>
+                                {idx + 1}
+                              </span>
+                              <StreamerAvatar name={p.name} size={20} shape="circle" />
+                              <span className="text-[11px] font-bold text-white truncate max-w-[95px]">{p.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <span className="text-[#8a8aa0]">{p.total}전 {p.wins}승</span>
+                              <span
+                                className={`font-black ${
+                                  p.rate >= 60 ? 'text-[#60a5fa]' : p.rate >= 50 ? 'text-[#34d399]' : 'text-[#f87171]'
+                                }`}
+                              >
+                                {p.rate}%
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[10px] text-[#6a6a80] py-2 text-center bg-[#12121c] rounded-lg border border-[#1e1e2a]">
+                          함께 플레이한 스트리머 전적 없음
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
