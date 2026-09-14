@@ -131,7 +131,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     return map;
   }, [matches]);
 
-  // === RESTORED + 초성 검색: ㅇㄹㅁ_, ㅅㅇㄴ, ㄱㄹ 모두 지원 ===
+  // === RESTORED + : ㅇㄹㅁ_, ㅅㅇㄴ, ㄱㄹ 모두 지원 ===
   const filteredMatches = useMemo(() => {
     return matches
       .filter((m) => {
@@ -737,7 +737,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
             <input
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              placeholder="날짜 검색 (예: 2026-09)"
+              placeholder="날짜"
               className="h-[36px] bg-[#08080c] border border-[#1e1e2a] rounded-full px-4 text-[12px] w-[180px] placeholder:text-[#5a5a6a] focus:outline-none focus:border-[#8b5cf6]/50"
             />
           </div>
@@ -746,7 +746,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
             <input
               value={filterName}
               onChange={(e) => setFilterName(e.target.value)}
-              placeholder="CK명 검색"
+              placeholder="CK명"
               className="h-[36px] bg-[#08080c] border border-[#1e1e2a] rounded-full px-4 text-[12px] w-[140px] placeholder:text-[#5a5a6a] focus:outline-none focus:border-[#8b5cf6]/50"
             />
           </div>
@@ -1439,7 +1439,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                                 }));
                                 setFormError('');
                               }}
-                              placeholder="ㅇㄹㅁ_, ㅅㅇㄴ"
+                              placeholder="플레이어"
                               limit={6}
                             />
                             {isPlayerDup && (
@@ -1462,7 +1462,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                                   [champsKey]: { ...prev[champsKey], [lineKey]: val },
                                 }));
                               }}
-                              placeholder="ㄱㄹ, ㅇㅇ"
+                              placeholder="챔피언"
                               limit={6}
                             />
                             {isChampDup && (
