@@ -12,10 +12,6 @@ interface Props {
   className?: string;
 }
 
-/**
- * CLEAN 버전 - 돋보기, 초성 힌트, "ㅇㅇ -> 아리" 같은 텍스트 전부 제거
- * 기능은 그대로 ㄱㄹ -> 가렌 작동, 화면은 깔끔하게
- */
 export const ChampionAutocomplete: React.FC<Props> = ({
   value,
   onSelect,
@@ -109,7 +105,7 @@ export const ChampionAutocomplete: React.FC<Props> = ({
             onClick={() => { setQuery(''); onChange?.(''); setIsOpen(false); inputRef.current?.focus(); }}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded-full bg-[#1e1e2a] text-[#6a6a80] hover:text-white text-[10px]"
           >
-            ✕
+            X
           </button>
         )}
       </div>
