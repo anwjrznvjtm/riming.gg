@@ -1,44 +1,45 @@
 /**
- * src/lib/champions.ts
- * FINAL - 173개 챔피언 전체 매핑 (2026년 6월 기준)
- * 173번째 챔피언 '로크(Locke)' 포함
+ * src/lib/championSearch.ts
+ * FINAL FIX - 중복 키 제거 + searchStreamersDetailed export 추가
+ * Build error fix: Duplicate key "마오카이" etc
  */
 
-const DDRAGON_VERSION = "16.11.1"; // 173번째 로크 포함 최신 버전, 없으면 14.23.1로 fallback 됨
+const DDRAGON_VERSION = "15.14.1";
 const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
 
-// 173개 전체 매핑 (한글 -> 영문 Data Dragon 파일명)
-// Data Dragon 파일명은 대소문자 구분 있음
+const CUSTOM_ICONS: Record<string, string> = {
+  // 자헨, 로크 커스텀 아이콘은 base64로 champions.ts에 있음 - 여기서는 빈 객체
+};
+
 export const CHAMPION_KR_TO_EN: Record<string, string> = {
-  // ㄱ
   "가렌": "Garen", "갈리오": "Galio", "갱플랭크": "Gangplank", "그라가스": "Gragas",
   "그레이브즈": "Graves", "그웬": "Gwen", "나르": "Gnar", "나미": "Nami",
-  "나서스": "Nasus", "나피리": "Naafiri", "녹턴": "Nocturne", "누누와 윌럼프": "Nunu", "누누": "Nunu",
-  "니달리": "Nidalee", "니코": "Neeko", "닐라": "Nilah",
+  "나서스": "Nasus", "나피리": "Naafiri", "노틸러스": "Nautilus", "녹턴": "Nocturne",
+  "누누와 윌럼프": "Nunu", "누누": "Nunu", "니달리": "Nidalee", "니코": "Neeko", "닐라": "Nilah",
   "다리우스": "Darius", "다이애나": "Diana", "드레이븐": "Draven",
   "라이즈": "Ryze", "라칸": "Rakan", "람머스": "Rammus", "럭스": "Lux",
   "럼블": "Rumble", "레나타 글라스크": "Renata", "레나타": "Renata",
   "레넥톤": "Renekton", "레오나": "Leona", "렉사이": "RekSai", "렐": "Rell", "렝가": "Rengar",
   "루시안": "Lucian", "룰루": "Lulu", "르블랑": "Leblanc", "리 신": "LeeSin", "리신": "LeeSin",
   "리븐": "Riven", "리산드라": "Lissandra", "릴리아": "Lillia", "록": "Locke", "로크": "Locke",
-  "말자하": "Malzahar", "말파이트": "Malphite", "마오카이": "Maokai",
-  "마스터 이": "MasterYi", "마스터이": "MasterYi", "마오카이": "Maokai",
+  "마오카이": "Maokai", "말자하": "Malzahar", "말파이트": "Malphite",
+  "마스터 이": "MasterYi", "마스터이": "MasterYi",
   "모데카이저": "Mordekaiser", "모르가나": "Morgana", "문도 박사": "DrMundo", "문도박사": "DrMundo", "문도": "DrMundo",
   "미스 포츈": "MissFortune", "미스포츈": "MissFortune", "미포": "MissFortune", "밀리오": "Milio",
   "바드": "Bard", "바루스": "Varus", "바이": "Vi", "베이가": "Veigar", "베인": "Vayne",
-  "벨베스": "Belveth", "벨코즈": "Velkoz", "볼리베어": "Volibear", "브라움": "Braum",
-  "브랜드": "Brand", "블라디미르": "Vladimir", "블리츠크랭크": "Blitzcrank", "블리츠": "Blitzcrank",
+  "벡스": "Vex", "벨베스": "Belveth", "벨코즈": "Velkoz", "볼리베어": "Volibear", "브라움": "Braum",
+  "브랜드": "Brand", "브라이어": "Briar", "블라디미르": "Vladimir", "블리츠크랭크": "Blitzcrank", "블리츠": "Blitzcrank", "블츠": "Blitzcrank",
   "비에고": "Viego", "빅토르": "Viktor", "뽀삐": "Poppy",
   "사미라": "Samira", "사이온": "Sion", "사일러스": "Sylas", "샤코": "Shaco",
   "세나": "Senna", "세라핀": "Seraphine", "세주아니": "Sejuani", "세트": "Sett",
   "소나": "Sona", "소라카": "Soraka", "쉔": "Shen", "쉬바나": "Shyvana",
-  "스몰더": "Smolder", "스웨인": "Swain", "스카너": "Skarner", "스카너 리워크": "Skarner",
+  "스몰더": "Smolder", "스웨인": "Swain", "스카너": "Skarner",
   "시비르": "Sivir", "신 짜오": "XinZhao", "신짜오": "XinZhao", "신지드": "Singed", "신드라": "Syndra",
   "쓰레쉬": "Thresh",
   "아리": "Ahri", "아무무": "Amumu", "아우렐리온 솔": "AurelionSol", "아우솔": "AurelionSol",
-  "아이번": "Ivern", "아지르": "Azir", "아칼리": "Akali", "아트록스": "Aatrox", "아펠리오스": "Aphelios",
+  "아이번": "Ivern", "아지르": "Azir", "아칼리": "Akali", "아크샨": "Akshan", "아트록스": "Aatrox", "아펠리오스": "Aphelios",
   "알리스타": "Alistar", "암베사": "Ambessa", "애니": "Annie", "애니비아": "Anivia", "애쉬": "Ashe",
-  "야스오": "Yasuo", "에코": "Ekko", "엘리스": "Elise", "오공": "MonkeyKing", "오른": "Ornn", "오리아나": "Orianna",
+  "야스오": "Yasuo", "에코": "Ekko", "엘리스": "Elise", "오공": "MonkeyKing", "올라프": "Olaf", "오른": "Ornn", "오리아나": "Orianna",
   "오로라": "Aurora", "요네": "Yone", "요릭": "Yorick", "우디르": "Udyr", "우르곳": "Urgot",
   "워윅": "Warwick", "유미": "Yuumi", "이렐리아": "Irelia", "이블린": "Evelynn", "이즈리얼": "Ezreal", "이즈": "Ezreal",
   "일라오이": "Illaoi",
@@ -46,23 +47,19 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "잭스": "Jax", "제드": "Zed", "제라스": "Xerath", "제리": "Zeri", "제이스": "Jayce", "조이": "Zoe",
   "직스": "Ziggs", "진": "Jhin", "질리언": "Zilean", "징크스": "Jinx",
   "초가스": "Chogath", "카르마": "Karma", "카밀": "Camille", "카사딘": "Kassadin", "카서스": "Karthus",
-  "카이사": "Kaisa", "카직스": "Khazix", "카타리나": "Katarina", "칼리스타": "Kalista",
+  "카이사": "Kaisa", "카직스": "Khazix", "카타리나": "Katarina", "칼리스타": "Kalista", "카시오페아": "Cassiopeia",
   "케넨": "Kennen", "케이틀린": "Caitlyn", "케인": "Kayn", "케일": "Kayle",
   "코그모": "KogMaw", "코르키": "Corki", "퀸": "Quinn", "크산테": "KSante", "클레드": "Kled",
   "키아나": "Qiyana", "킨드레드": "Kindred",
   "타릭": "Taric", "탈론": "Talon", "탈리야": "Taliyah", "탐 켄치": "TahmKench", "탐켄치": "TahmKench",
   "트런들": "Trundle", "트리스타나": "Tristana", "트린다미어": "Tryndamere",
   "트위스티드 페이트": "TwistedFate", "트페": "TwistedFate", "트위치": "Twitch",
-  "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz",
-  "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "헤카림": "Hecarim", "흐웨이": "Hwei",
-  // 신챔
-  "브라이어": "Briar", "나피리": "Naafiri", "밀리오": "Milio", "흐웨이": "Hwei", "스몰더": "Smolder",
-  "오로라": "Aurora", "암베사": "Ambessa", "멜": "Mel", "로크": "Locke", "록": "Locke",
-  // 약어
-  "미포": "MissFortune", "이즈": "Ezreal", "블츠": "Blitzcrank", "모데": "Mordekaiser",
+  "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz", "피오라": "Fiora",
+  "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "흐웨이": "Hwei",
+  "멜": "Mel", "윤아라": "Yunara", "유나라": "Yunara", "자헨": "Zahen", "자야헨": "Xayah", "모데": "Mordekaiser",
+  "카시": "Cassiopeia", "시오페아": "Cassiopeia",
 };
 
-// 총 개수 검증용
 export const TOTAL_CHAMPIONS = 173;
 
 export function normalizeChampionName(name: string): string {
@@ -85,11 +82,111 @@ export function getChampionEnName(krName: string): string | null {
 export function getChampionIconUrl(krName: string): string | null {
   const enName = getChampionEnName(krName);
   if (!enName) return null;
+  if (CUSTOM_ICONS[enName]) return CUSTOM_ICONS[enName];
   return `${DDRAGON_BASE}/${enName}.png`;
 }
 
 export function getChampionFallbackUrl(krName: string): string | null {
   const enName = getChampionEnName(krName);
   if (!enName) return null;
+  if (CUSTOM_ICONS[enName]) return CUSTOM_ICONS[enName];
+  if (["Mel", "Yunara", "Zahen", "Locke", "Cassiopeia", "Fiora"].includes(enName)) {
+    return `https://cdn.communitydragon.org/latest/champion/${enName}/square`;
+  }
   return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${enName}.png`;
+}
+
+// --- Streamer search fix ---
+export interface StreamerDetail {
+  id: string;
+  nickname: string;
+  mainPosition?: string;
+  winRate?: number;
+  totalGames?: number;
+  team?: string;
+}
+
+// 기존 fuzzySearch의 로직을 재사용하지만, 여기서는 독립적으로 동작
+function getChosung(str: string): string {
+  const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  const HANGUL_BASE = 0xAC00;
+  const HANGUL_END = 0xD7A3;
+  let result = '';
+  for (const char of str) {
+    const code = char.charCodeAt(0);
+    if (code >= HANGUL_BASE && code <= HANGUL_END) {
+      const chosungIndex = Math.floor((code - HANGUL_BASE) / (21 * 28));
+      result += CHOSUNG_LIST[chosungIndex];
+    } else {
+      result += char.toLowerCase();
+    }
+  }
+  return result;
+}
+
+/**
+ * StreamerSearchBar에서 쓰는 함수 - 빌드 에러 fix
+ * query로 스트리머 목록에서 검색, 상세 정보 포함
+ */
+export function searchStreamersDetailed(query: string, allStreamers: string[], matches?: any[]): StreamerDetail[] {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) {
+    // 빈 쿼리면 전체 반환 (최대 20개)
+    return allStreamers.slice(0, 20).map(name => ({
+      id: name,
+      nickname: name,
+    }));
+  }
+  
+  const qChosung = getChosung(q);
+  
+  const results: (StreamerDetail & { score: number })[] = [];
+  
+  for (const name of allStreamers) {
+    const lower = name.toLowerCase();
+    const chosung = getChosung(name);
+    let score = 999;
+    
+    if (lower === q) score = 0;
+    else if (lower.startsWith(q)) score = 10;
+    else if (chosung.startsWith(q) || chosung.startsWith(qChosung)) score = 15;
+    else if (lower.includes(q)) score = 30;
+    else if (chosung.includes(qChosung) && qChosung.length >= 2) score = 35;
+    else continue;
+    
+    results.push({
+      id: name,
+      nickname: name,
+      score,
+    });
+  }
+  
+  return results
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 10)
+    .map(({ score, ...rest }) => rest);
+}
+
+// 기존 호환용
+export function searchStreamers(query: string, streamers: string[]): string[] {
+  return searchStreamersDetailed(query, streamers).map(s => s.nickname);
+}
+
+// 챔피언 검색 (fuzzySearch와 호환)
+export function searchChampions(query: string, limit = 8) {
+  const q = normalizeChampionName(query).toLowerCase().trim();
+  if (!q) return [];
+  
+  const list = Object.entries(CHAMPION_KR_TO_EN).map(([kr, en]) => ({
+    kr,
+    en,
+    lower: kr.toLowerCase(),
+  }));
+  
+  const filtered = list.filter(c => c.lower.includes(q) || c.en.toLowerCase().includes(q));
+  return filtered.slice(0, limit).map(c => ({
+    id: c.en,
+    kr: c.kr,
+    en: c.en,
+  }));
 }
