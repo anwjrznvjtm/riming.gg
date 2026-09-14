@@ -2,14 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { Match, LineName, PartnerStat, LINE_KEYS, LINE_LABELS, LineKey } from '../types';
 import { ComputedStats, getWoorimingTeam, getWoorimingLineKey, isWooriming, getPlayerLineChampionStats } from '../lib/stats';
 import { ChampionIcon } from './ChampionIcon';
-import { X, Trophy, TrendingDown, Users, ChevronRight, Calendar, Swords } from 'lucide-react';
+import { StreamerAvatar } from './StreamerAvatar';
+import { X, Trophy, TrendingDown, Users, ChevronRight, Calendar, Swords, Zap } from 'lucide-react';
 
 interface SynergyTabProps {
   stats: ComputedStats;
   matches: Match[];
+  onJumpToStreamer?: (streamerName: string, matchId?: string, teamRole?: 'all' | 'ally' | 'enemy') => void;
 }
 
-export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
+export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches, onJumpToStreamer }) => {
   const [selectedModal, setSelectedModal] = useState<{
     woorimingLine: 'ADC' | 'SUP';
     partnerLine: LineName;
@@ -146,15 +148,18 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                               <span>BEST</span>
                             </div>
                             {best ? (
-                              <div className="text-right">
-                                <div className="text-[13px] font-bold text-white group-hover:text-[#86efac] transition">
-                                  {best.name}
-                                </div>
-                                <div className="text-[11px] text-[#8a8aa0]">
-                                  {best.games}판 {best.wins}승 {best.games - best.wins}패{' '}
-                                  <span className="text-[#10b981] font-bold">
-                                    {((best.wins / best.games) * 100).toFixed(0)}%
-                                  </span>
+                              <div className="flex items-center gap-2">
+                                <StreamerAvatar name={best.name} size={28} shape="circle" className="border border-[#10b981]/40" />
+                                <div className="text-right">
+                                  <div className="text-[13px] font-bold text-white group-hover:text-[#86efac] transition">
+                                    {best.name}
+                                  </div>
+                                  <div className="text-[11px] text-[#8a8aa0]">
+                                    {best.games}판 {best.wins}승 {best.games - best.wins}패{' '}
+                                    <span className="text-[#10b981] font-bold">
+                                      {((best.wins / best.games) * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             ) : (
@@ -222,15 +227,18 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                               <span>WORST</span>
                             </div>
                             {worst ? (
-                              <div className="text-right">
-                                <div className="text-[13px] font-bold text-white group-hover:text-[#fca5a5] transition">
-                                  {worst.name}
-                                </div>
-                                <div className="text-[11px] text-[#8a8aa0]">
-                                  {worst.games}판 {worst.wins}승 {worst.games - worst.wins}패{' '}
-                                  <span className="text-[#ef4444] font-bold">
-                                    {((worst.wins / worst.games) * 100).toFixed(0)}%
-                                  </span>
+                              <div className="flex items-center gap-2">
+                                <StreamerAvatar name={worst.name} size={28} shape="circle" className="border border-[#ef4444]/40" />
+                                <div className="text-right">
+                                  <div className="text-[13px] font-bold text-white group-hover:text-[#fca5a5] transition">
+                                    {worst.name}
+                                  </div>
+                                  <div className="text-[11px] text-[#8a8aa0]">
+                                    {worst.games}판 {worst.wins}승 {worst.games - worst.wins}패{' '}
+                                    <span className="text-[#ef4444] font-bold">
+                                      {((worst.wins / worst.games) * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             ) : (
@@ -389,7 +397,8 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                               }`}
                             >
                               <td className="p-2.5 text-[#8a8aa0] font-medium">{idx + 1}</td>
-                              <td className="p-2.5 font-bold text-white flex items-center gap-1.5">
+                              <td className="p-2.5 font-bold text-white flex items-center gap-2">
+                                <StreamerAvatar name={p.name} size={22} shape="circle" />
                                 <span>{p.name}</span>
                                 {isSelected && (
                                   <span className="text-[10px] bg-[#8b5cf6] text-white px-1.5 py-0.2 rounded font-normal">
@@ -471,23 +480,40 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
             {/* Match History for Selected Streamer */}
             {selectedModal.selectedStreamer && (
               <div className="border-t border-[#1e1e2a] pt-4 animate-[fadeIn_0.2s]">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="text-[13px] font-bold text-white flex items-center gap-2">
                     <Swords size={16} className="text-[#8b5cf6]" />
+                    <StreamerAvatar name={selectedModal.selectedStreamer || ''} size={22} shape="circle" />
                     <span>우리밍_ × {selectedModal.selectedStreamer} 함께 플레이한 경기 목록</span>
                     <span className="text-[11px] bg-[#8b5cf6]/20 text-[#a78bfa] px-2 py-0.5 rounded-full">
                       총 {partnerMatches.length}경기
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedModal((prev) => (prev ? { ...prev, selectedStreamer: null } : null))
-                    }
-                    className="text-[11px] text-[#8a8aa0] hover:text-white"
-                  >
-                    목록 닫기
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {onJumpToStreamer && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const name = selectedModal.selectedStreamer || '';
+                          setSelectedModal(null);
+                          onJumpToStreamer(name);
+                        }}
+                        className="px-2.5 py-1 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6] text-[#c4b5fd] hover:text-white border border-[#8b5cf6]/40 rounded-full text-[11px] font-bold flex items-center gap-1 transition"
+                      >
+                        <Zap size={11} />
+                        <span>CK 일지 이동</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedModal((prev) => (prev ? { ...prev, selectedStreamer: null } : null))
+                      }
+                      className="text-[11px] text-[#8a8aa0] hover:text-white"
+                    >
+                      목록 닫기
+                    </button>
+                  </div>
                 </div>
 
                 {partnerMatches.length === 0 ? (
@@ -569,13 +595,28 @@ export const SynergyTab: React.FC<SynergyTabProps> = ({ stats, matches }) => {
                             </div>
                           </div>
 
-                          <div className="text-right shrink-0">
+                          <div className="text-right shrink-0 flex flex-col items-end gap-1">
                             <div className="text-[11px] font-bold text-white">
                               {m.winning_team === 'Red' ? 'RED팀' : 'BLUE팀'} {m.score || ''}
                             </div>
                             <div className="text-[10px] text-[#8a8aa0]">
                               소속: {wTeam === 'Red' ? '🔴 Red팀' : '🔵 Blue팀'}
                             </div>
+                            {onJumpToStreamer && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const name = selectedModal.selectedStreamer || '';
+                                  setSelectedModal(null);
+                                  onJumpToStreamer(name, m.id, 'ally');
+                                }}
+                                className="mt-0.5 px-2 py-0.5 rounded bg-[#1e1e30] hover:bg-[#8b5cf6] text-[#c0c0d8] hover:text-white rounded-md text-[10px] font-bold border border-[#2a2a44] transition flex items-center gap-1"
+                                title="CK 일지의 해당 세트 카드로 이동"
+                              >
+                                <span>이 세트로 이동</span>
+                                <Zap size={10} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
