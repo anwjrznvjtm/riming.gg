@@ -1,14 +1,13 @@
 import React from 'react';
 import { Match } from '../types';
 import { BgmTrack } from '../lib/bgm';
-import { StreamerSearchBar } from './StreamerSearchBar';
+import { GlobalSearch } from './GlobalSearch';
 
 interface HeaderProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
   matches: Match[];
   allStreamers: string[];
-  onSelectStreamer: (streamerName: string, matchId?: string, teamRole?: 'all' | 'ally' | 'enemy') => void;
   isAdmin: boolean;
   onLoginClick: () => void;
   onLogoutClick: () => void;
@@ -22,15 +21,15 @@ interface HeaderProps {
   onToggleMute: () => void;
   bgmVolume: number;
   onChangeVolume: (v: number) => void;
+  onJumpToMatch?: (matchId: string) => void;
 }
 
-// FINAL FIX: 모바일에서도 메뉴 절대 안 사라지는 헤더 + 스트리머 전적 검색창
+// ✅ FINAL: 초성 검색창이 들어간 헤더 - ㅇㄹㅁ_ → 우리밍_, ㄱㄹ → 가렌
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onTabChange,
   matches,
   allStreamers,
-  onSelectStreamer,
   isAdmin,
   onLoginClick,
   onLogoutClick,
@@ -42,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
   bgmVolume,
   onChangeVolume,
   currentTrack,
+  onToast,
+  onJumpToMatch,
 }) => {
   const tabs = [
     { id: 'main', label: '메인' },
@@ -52,15 +53,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-[#08080c]/95 backdrop-blur-xl border-b border-[#1e1e2a]">
-      <div className="max-w-[1100px] mx-auto px-3 md:px-6 py-2.5 md:py-0 md:h-[56px] flex flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-3">
+      <div className="max-w-[1100px] mx-auto px-3 md:px-6 py-2.5 md:py-0 md:h-[56px] flex flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-4">
         
-        {/* 첫 줄: 로고 + 메뉴 탭 (모바일에서도 항상 보임) */}
+        {/* 첫 줄: 로고 + 메뉴 */}
         <div className="flex items-center gap-2.5 w-full md:w-auto min-w-0">
           <div className="font-black text-[17px] md:text-[18px] tracking-[0.15em] text-[#c0c0d0] shrink-0">
             RIMING.GG
           </div>
           
-          {/* 탭 - 가로 스크롤 가능하지만 절대 숨지 않음 */}
           <nav className="flex items-center gap-1 bg-[#12121a] border border-[#1e1e2a] rounded-full p-1 overflow-x-auto scrollbar-hide flex-1 md:flex-none max-w-full">
             <style>{`
               .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -82,17 +82,16 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
         </div>
 
-        {/* 둘째 줄 / 우측: 상단 스트리머 검색창 + BGM + 관리자 */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end flex-wrap md:flex-nowrap">
-          {/* 상단 스트리머 전적 검색창 */}
-          <div className="w-full md:w-[230px] lg:w-[260px] order-last md:order-first">
-            <StreamerSearchBar
-              allStreamers={allStreamers}
-              matches={matches}
-              onSelectStreamer={onSelectStreamer}
-              placeholder="스트리머 검색 (예: 린다랑, 서리)"
-            />
-          </div>
+        {/* ✅ 여기에 초성 검색창 추가! */}
+        <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+          
+          {/* 🔍 초성 검색창 - ㅇㄹㅁ_, ㄱㄹ, ㅅㅇㄴ 다 됨! */}
+          <GlobalSearch 
+            matches={matches} 
+            allStreamers={allStreamers} 
+            onJumpToMatch={onJumpToMatch}
+            onToast={onToast}
+          />
 
           {/* BGM 컨트롤 */}
           <div className="flex items-center gap-2 bg-[#12121a] border border-[#2a2a4a] rounded-full px-2.5 py-1 h-[34px] shrink-0">
@@ -120,7 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-2 ml-auto md:ml-0">
+          <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={isAdmin ? onLogoutClick : onLoginClick}
               className={`h-[32px] px-3 rounded-full text-[11px] font-bold border transition shrink-0 ${
@@ -133,10 +132,9 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
       
-      {/* 현재 재생곡 - 모바일에서만 작게 표시 */}
-      <div className="md:hidden px-3 pb-2 -mt-0.5">
+      <div className="md:hidden px-3 pb-2 -mt-1">
         <div className="text-[10px] text-[#5a5a70] truncate">
-          🎵 {currentTrack?.title} - {currentTrack?.artist}
+          🎵 {currentTrack?.title} - {currentTrack?.artist} • 초성 검색: ㅇㄹㅁ_, ㄱㄹ, ㅅㅇㄴ
         </div>
       </div>
     </header>
