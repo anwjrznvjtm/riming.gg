@@ -1,12 +1,10 @@
 /**
- * src/lib/champions.ts
- * FINAL FIX - 173개 챔피언 + 중복 제거 + parseKdaString 복구
+ * src/lib/champions.ts - CLEANED (중복 제거)
  */
 const DDRAGON_VERSION = "16.11.1";
 const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
 
 export const CHAMPION_KR_TO_EN: Record<string, string> = {
-
   "가렌": "Garen", "갈리오": "Galio", "갱플랭크": "Gangplank", "그라가스": "Gragas",
   "그레이브즈": "Graves", "그웬": "Gwen", "나르": "Gnar", "나미": "Nami",
   "나서스": "Nasus", "나피리": "Naafiri", "녹턴": "Nocturne", "누누와 윌럼프": "Nunu", "누누": "Nunu",
@@ -53,7 +51,6 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "흐웨이": "Hwei",
   "브라이어": "Briar", "멜": "Mel",
   "블츠": "Blitzcrank", "모데": "Mordekaiser",
-
 };
 
 export const TOTAL_CHAMPIONS = 173;
