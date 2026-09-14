@@ -246,14 +246,20 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   };
 
   const handleOpenEditModal = (m: Match) => {
-    // 수정 모달 열 때는 이전 세트 승자들만 seriesWinners로 설정해야 1세트=1:0, 2세트=2:0 같은 누적 스코어가 정확해짐
+    // FIX v6: 이전 세트 승자들만 추출 (자기 자신 제외)
     const prevWinners = getPrevWinnersForEdit(m, matches);
     setSeriesWinners(prevWinners);
 
-    // 수정 시 스코어는 기존 스코어 유지하되, 혹시 이전 승자 기반으로 다시 계산할 수 있도록 기존 값 그대로 사용
-    // (사용자가 승리 팀을 바꾸면 handleSelectWinner에서 prevWinners 기반으로 재계산됨)
+    // FIX v6: 모달 열 때 점수를 즉시 재계산해서 1세트가 3:0으로 뜨는 버그 방지
+    const prevRed = prevWinners.filter((w) => w === 'Red').length;
+    const prevBlue = prevWinners.filter((w) => w === 'Blue').length;
+    const redWins = prevRed + (m.winning_team === 'Red' ? 1 : 0);
+    const blueWins = prevBlue + (m.winning_team === 'Blue' ? 1 : 0);
+    const fixedScore = `${redWins}:${blueWins}`;
+
     setFormData({
       ...m,
+      score: fixedScore,
       team_a: { ...m.team_a },
       team_b: { ...m.team_b },
       team_a_champs: { ...m.team_a_champs },
