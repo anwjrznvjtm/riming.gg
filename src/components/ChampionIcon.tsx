@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getChampionIconUrl, getChampionEnName } from '../lib/champions';
+import { getChampionIconUrl, getChampionFallbackUrl, getChampionEnName } from '../lib/champions';
 
 interface Props {
   name: string;
@@ -10,14 +10,17 @@ interface Props {
 
 export const ChampionIcon: React.FC<Props> = ({ name, size = 24, shape = "circle", showLock = false }) => {
   const [failed, setFailed] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
   
   const cleanName = (name || "").trim();
   if (!cleanName) {
     return <div style={{ width: size, height: size }} className="bg-[#1e1e2a] rounded-full" />;
   }
 
-  const url = getChampionIconUrl(cleanName);
   const enName = getChampionEnName(cleanName);
+  const primaryUrl = getChampionIconUrl(cleanName);
+  const fallbackUrl = getChampionFallbackUrl(cleanName);
+  const url = useFallback && fallbackUrl ? fallbackUrl : primaryUrl;
 
   if (failed || !url || !enName) {
     return (
@@ -39,7 +42,13 @@ export const ChampionIcon: React.FC<Props> = ({ name, size = 24, shape = "circle
         width={size}
         height={size}
         className={`${shape === "circle" ? "rounded-full" : "rounded-[4px]"} border border-[#2a2a3a] object-cover bg-[#12121a]`}
-        onError={() => setFailed(true)}
+        onError={() => {
+          if (!useFallback && fallbackUrl && fallbackUrl !== primaryUrl) {
+            setUseFallback(true);
+          } else {
+            setFailed(true);
+          }
+        }}
         loading="lazy"
       />
       {showLock && (
