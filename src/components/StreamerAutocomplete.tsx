@@ -12,16 +12,15 @@ interface Props {
 }
 
 /**
- * StreamerAutocomplete - 프로필 사진 없는 초경량 버전
- * soopProfiles.ts 필요 없음!
- * CK일지 기준 + 초성 ㅇㄹㅁ_ → 우리밍_ 완벽 지원
+ * CLEAN 버전 - 돋보기, 초성 힌트 텍스트 전부 제거
+ * 기능은 그대로 초성 ㅇㄹㅁ_ -> 우리밍_ 작동, 화면은 깔끔하게
  */
 export const StreamerAutocomplete: React.FC<Props> = ({
   value,
   allStreamers,
   onSelect,
   onChange,
-  placeholder = "ㅇㄹㅁ_, ㅅㅇㄴ 초성 검색",
+  placeholder = "플레이어",
   limit = 8,
   className = "",
 }) => {
@@ -81,18 +80,16 @@ export const StreamerAutocomplete: React.FC<Props> = ({
           ref={inputRef} type="text" value={query} onChange={handleInputChange} onKeyDown={handleKeyDown}
           onFocus={() => query && results.length > 0 && setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full h-[36px] pl-8 pr-8 bg-[#08080c] border border-[#1e1e2a] rounded-full text-white text-[12px] placeholder:text-[#5a5a70] focus:outline-none focus:border-[#7c3aed] focus:ring-1 focus:ring-[#7c3aed] transition"
+          className="w-full h-[32px] bg-[#12121a] border border-[#1e1e2a] rounded-full px-3 text-[11px] text-white placeholder:text-[#5a5a70] focus:outline-none focus:border-[#8b5cf6]/50 transition"
         />
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a5a70] text-[12px]">🔍</span>
-        {query && <button onClick={() => { setQuery(''); onChange?.(''); setIsOpen(false); inputRef.current?.focus(); }} className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded-full bg-[#1e1e2a] text-[#6a6a80] hover:text-white text-[10px]">✕</button>}
+        {query && <button onClick={() => { setQuery(''); onChange?.(''); setIsOpen(false); inputRef.current?.focus(); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded-full bg-[#1e1e2a] text-[#6a6a80] hover:text-white text-[10px]">✕</button>}
       </div>
       {isOpen && results.length > 0 && (
-        <div className="absolute z-50 mt-1.5 w-full bg-[#12121a] border border-[#1e1e2a] rounded-[14px] shadow-2xl overflow-hidden max-h-[300px] overflow-y-auto">
-          <div className="px-3.5 py-2 text-[10px] text-[#5a5a70] border-b border-[#1e1e2a] flex justify-between bg-[#08080c]"><span>{results.length}명 • CK일지 • 초성 OK</span><span className="text-[#7c3aed] font-mono">{getChosung(query)}</span></div>
+        <div className="absolute z-50 mt-1 w-full bg-[#12121a] border border-[#1e1e2a] rounded-[12px] shadow-xl overflow-hidden max-h-[240px] overflow-y-auto">
           {results.map((s, idx) => (
-            <button key={s.id} onClick={() => handleSelect(s.nickname)} onMouseEnter={() => setSelectedIndex(idx)} className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-[#1e1e2a] transition ${idx === selectedIndex ? 'bg-[#1e1e2a] border-l-2 border-[#7c3aed]' : 'border-l-2 border-transparent'}`}>
-              <div className="w-7 h-7 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] grid place-items-center text-[11px] font-bold text-[#a78bfa]">{s.nickname.slice(0,1)}</div>
-              <div className="flex-1 min-w-0"><div className="text-[12px] font-bold text-white truncate">{s.nickname}</div><div className="text-[10px] text-[#5a5a70]">초성: {s.chosung}</div></div>
+            <button key={s.id} onClick={() => handleSelect(s.nickname)} onMouseEnter={() => setSelectedIndex(idx)} className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[#1e1e2a] transition ${idx === selectedIndex ? 'bg-[#1e1e2a]' : ''}`}>
+              <div className="w-6 h-6 rounded-full bg-[#1e1e2a] border border-[#2a2a3a] grid place-items-center text-[10px] font-bold text-[#c2c6d6]">{s.nickname.slice(0,1)}</div>
+              <span className="text-[12px] text-white truncate">{s.nickname}</span>
             </button>
           ))}
         </div>
