@@ -449,11 +449,11 @@ export default function App() {
     try {
       const res = await createMatchOnApi(normalized);
       if (res.success) {
-        showToast('경기 등록 완료 (Worker 클라우드 저장 ☁)');
+        showToast('경기 등록 완료');
       } else {
-        showToast('경기 등록 완료 (로컬 캐시 보관됨)');
+        showToast('경기 등록 완료');
       }
-      // sync 제거 - 자동 동기화로 인한 되돌림 버그 방지
+      // 자동 동기화 제거 - 삭제 부활 버그 방지
     } catch (err) {
       console.warn('[MatchApi] POST match failed:', err);
     }
@@ -466,12 +466,12 @@ export default function App() {
     try {
       const res = await updateMatchOnApi(normalized, matches);
       if (res.success) {
-        showToast('경기 수정 완료 (Worker 클라우드 반영 ☁)');
+        showToast('경기 수정 완료');
       } else {
         showToast('경기 수정 완료 (로컬 캐시 보관됨) - ' + (res.error || ''));
       }
       // FIX: 즉시 동기화하면 D1 반영 전 옛날 데이터로 덮어씌워져서 다시 블루로 돌아오는 현상 방지
-      // sync 제거 - 자동 동기화로 인한 되돌림 버그 방지
+      // 자동 동기화 제거 - 삭제 부활 버그 방지
     } catch (err) {
       console.warn('[MatchApi] PUT match failed:', err);
       showToast('로컬에 수정됨 (클라우드 동기화 실패)');
@@ -484,11 +484,11 @@ export default function App() {
     try {
       const res = await deleteMatchOnApi(id, remaining);
       if (res.success) {
-        showToast('경기 삭제 완료 (Worker 클라우드 반영 ☁)');
+        showToast('경기 삭제 완료');
       } else {
-        showToast('경기 삭제 완료 (로컬 캐시 보관됨)');
+        showToast('경기 삭제 완료');
       }
-      // sync 제거 - 자동 동기화로 인한 되돌림 버그 방지
+      // 자동 동기화 제거 - 삭제 부활 버그 방지
     } catch (err) {
       console.warn('[MatchApi] DELETE match failed:', err);
     }
