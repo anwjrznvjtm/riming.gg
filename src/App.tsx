@@ -38,6 +38,14 @@ declare global {
 export default function App() {
   const [matches, setMatches] = useState<Match[]>(() => {
     try {
+      // 삭제된 ID 블랙리스트 로드
+      try {
+        const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
+        if (Array.isArray(deleted)) {
+          // deletedIdsRef는 아직 초기화 전이라 직접 접근 불가, useEffect에서 로드
+        }
+      } catch {}
+      
       const alreadyPurged = localStorage.getItem('riming_mock_purged_v1');
       if (!alreadyPurged) {
         localStorage.removeItem(STORAGE_KEY_MATCHES);
@@ -57,6 +65,20 @@ export default function App() {
     }
     return getInitialMatches();
   });
+  
+  // 삭제된 ID 블랙리스트 초기화
+  useEffect(() => {
+    try {
+      const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
+      if (Array.isArray(deleted)) {
+        deleted.forEach((id: string) => deletedIdsRef.current.add(String(id)));
+        // 현재 matches에서도 필터링
+        if (deleted.length > 0) {
+          setMatches(prev => prev.filter(m => !deletedIdsRef.current.has(String(m.id))));
+        }
+      }
+    } catch {}
+  }, []);
 
   const [currentTab, setCurrentTab] = useState<string>('main');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
@@ -73,6 +95,7 @@ export default function App() {
   const currentTrackRef = useRef<BgmTrack>(BGM_PLAYLIST[0]);
   const [currentTrack, setCurrentTrack] = useState<BgmTrack>(BGM_PLAYLIST[0]);
   const isQueueInitRef = useRef<boolean>(false);
+  const deletedIdsRef = useRef<Set<string>>(new Set()); // 삭제된 ID 블랙리스트 - 다시 생기는 버그 방지
 
   if (!isQueueInitRef.current) {
     const initialQueue = createBgmQueue(BGM_PLAYLIST);
@@ -136,9 +159,14 @@ export default function App() {
     try {
       const { matches: remoteMatches, source } = await fetchAllMatchesFromApi();
       if (Array.isArray(remoteMatches)) {
-        setMatches(remoteMatches);
+        // 삭제된 ID는 클라우드에서 다시 와도 필터링 - 부활 버그 완벽 차단
+        const filtered = remoteMatches.filter(m => !deletedIdsRef.current.has(String(m.id)));
+        if (filtered.length !== remoteMatches.length) {
+          console.log(`[Cloud Sync] ${remoteMatches.length - filtered.length}개 삭제된 경기 필터링됨`);
+        }
+        setMatches(filtered);
         setSyncStatus('synced');
-        console.log(`[Cloud Sync] Synchronized ${remoteMatches.length} matches from ${source}`);
+        console.log(`[Cloud Sync] Synchronized ${filtered.length} matches from ${source}`);
       }
     } catch (err) {
       console.warn('[Cloud Sync] Failed to sync:', err);
