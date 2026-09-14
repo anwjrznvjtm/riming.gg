@@ -38,6 +38,7 @@ interface JournalTabProps {
   onAddMatch: (match: Match) => void;
   onUpdateMatch: (match: Match) => void;
   onDeleteMatch: (id: string) => void;
+  onImportMatches?: (matches: Match[]) => void;
   isAdmin: boolean;
   onAdminLoginSuccess: () => void;
   onToast: (msg: string) => void;
@@ -68,10 +69,8 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [formError, setFormError] = useState('');
 
-  // Series winners tracker for auto score calculation (e.g. ['Red', 'Blue'])
   const [seriesWinners, setSeriesWinners] = useState<('Red' | 'Blue')[]>([]);
 
-  // Form State
   const emptyRoster = { top: '', jgl: '', mid: '', adc: '', sup: '' };
   const [formData, setFormData] = useState<Match>({
     id: '',
@@ -94,25 +93,59 @@ export const JournalTab: React.FC<JournalTabProps> = ({
   const [formPasscode, setFormPasscode] = useState('');
   const [persistAdminInForm, setPersistAdminInForm] = useState(true);
 
-  // Delete modal state
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deletePasscode, setDeletePasscode] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
-  // Filtered matches
-  const filteredMatches = matches
-    .filter((m) => {
-      if (filterDate && !m.date.includes(filterDate)) return false;
-      if (filterName && !m.ck_name.toLowerCase().includes(filterName.toLowerCase())) return false;
-      if (filterLine !== 'ALL') {
-        const line = getWoorimingLine(m);
-        if (line !== filterLine) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => b.date.localeCompare(a.date));
+  // === FIXED: Correct cumulative score calculation grouped by date+ck_name ===
+  const correctedScoreMap = useMemo(() => {
+    const groups = new Map<string, Match[]>();
+    for (const m of matches) {
+      const key = `${m.date}__${(m.ck_name || '').trim()}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(m);
+    }
 
-  // Find where Wooriming is currently placed in formData
+    const map = new Map<string, string>();
+    for (const [, group] of groups) {
+      const sortedAsc = [...group].sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
+      let redWins = 0;
+      let blueWins = 0;
+      for (const m of sortedAsc) {
+        if (m.winning_team === 'Red') redWins++;
+        else if (m.winning_team === 'Blue') blueWins++;
+        const wTeam = getWoorimingTeam(m);
+        const isWRed = wTeam === 'Red';
+        const allyScore = isWRed ? redWins : blueWins;
+        const enemyScore = isWRed ? blueWins : redWins;
+        map.set(m.id, `${allyScore}:${enemyScore}`);
+      }
+    }
+    return map;
+  }, [matches]);
+
+  // === FIXED: Filter + Sort - 날짜 내림차순, 같은 날짜는 세트번호 내림차순 (최신이 위, 1세트가 아래) ===
+  const filteredMatches = useMemo(() => {
+    return matches
+      .filter((m) => {
+        if (filterDate && !m.date.includes(filterDate)) return false;
+        if (filterName && !m.ck_name.toLowerCase().includes(filterName.toLowerCase())) return false;
+        if (filterLine !== 'ALL') {
+          const line = getWoorimingLine(m);
+          if (line !== filterLine) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const dateDiff = b.date.localeCompare(a.date);
+        if (dateDiff !== 0) return dateDiff;
+        // 같은 날짜면 CK명, 그 다음 세트번호 내림차순 (4세트가 위로)
+        const ckDiff = (b.ck_name || '').localeCompare(a.ck_name || '');
+        if (ckDiff !== 0) return ckDiff;
+        return (Number(b.set_number) || 1) - (Number(a.set_number) || 1);
+      });
+  }, [matches, filterDate, filterName, filterLine]);
+
   const woorimingLocation = useMemo(() => {
     for (const teamKey of ['team_a', 'team_b'] as const) {
       for (const l of LINE_KEYS) {
@@ -124,7 +157,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     return null;
   }, [formData.team_a, formData.team_b]);
 
-  // Set Wooriming position exclusively (clears from other slots)
   const handleSetWooriming = (targetTeam: 'team_a' | 'team_b', targetLine: LineKey) => {
     setFormData((prev) => {
       const nextA = { ...prev.team_a };
@@ -147,7 +179,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     setFormError('');
   };
 
-  // Real-time duplicates calculation
   const { duplicatePlayers, duplicateChamps } = useMemo(() => {
     const pCounts = new Map<string, number>();
     const cCounts = new Map<string, number>();
@@ -214,19 +245,29 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     setIsEditModalOpen(true);
   };
 
-  // Smart winner selection with cumulative score calculation
+  // FIXED: Winner selection - calculate from actual same-series matches, not just state
   const handleSelectWinner = (winner: 'Red' | 'Blue') => {
-    const redWins = seriesWinners.filter((w) => w === 'Red').length + (winner === 'Red' ? 1 : 0);
-    const blueWins = seriesWinners.filter((w) => w === 'Blue').length + (winner === 'Blue' ? 1 : 0);
+    const sameSeries = matches
+      .filter((m) => m.date === formData.date && m.ck_name.trim() === formData.ck_name.trim() && m.id !== formData.id)
+      .sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
+    
+    let red = 0;
+    let blue = 0;
+    for (const m of sameSeries) {
+      if (m.winning_team === 'Red') red++;
+      else blue++;
+    }
+    if (winner === 'Red') red++;
+    else blue++;
+
     setFormData((prev) => ({
       ...prev,
       winning_team: winner,
-      score: `${redWins}:${blueWins}`,
+      score: `${red}:${blue}`,
     }));
     setFormError('');
   };
 
-  // 1-Click Load Previous Set Roster
   const handleLoadPreviousSetRoster = () => {
     if (matches.length === 0) {
       onToast('불러올 이전 경기 데이터가 없습니다.');
@@ -242,22 +283,20 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     const prevMatch = sorted[0];
     const nextSet = (Number(prevMatch.set_number) || 1) + 1;
 
-    // Collect previous series results for matching date & CK
     const sameSeriesMatches = matches
-      .filter(
-        (m) => m.date === prevMatch.date && (m.ck_name === prevMatch.ck_name || !prevMatch.ck_name)
-      )
+      .filter((m) => m.date === prevMatch.date && m.ck_name.trim() === prevMatch.ck_name.trim())
       .sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
     const prevWinners = sameSeriesMatches.map((m) => m.winning_team as 'Red' | 'Blue');
     setSeriesWinners(prevWinners);
 
-    const initialWinner: 'Red' | 'Blue' = 'Red';
+    // Next set prefill - keep Red as default but score is based on prev + assumed Red win
     const redWins = prevWinners.filter((w) => w === 'Red').length + 1;
     const blueWins = prevWinners.filter((w) => w === 'Blue').length;
 
     setFormData((curr) => ({
       ...curr,
       ck_name: prevMatch.ck_name || curr.ck_name,
+      date: prevMatch.date || curr.date,
       match_format: prevMatch.match_format || curr.match_format,
       set_number: nextSet,
       team_a: { ...prevMatch.team_a },
@@ -266,14 +305,13 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       team_b_champs: { ...prevMatch.team_b_champs },
       team_a_kda: { ...emptyRoster },
       team_b_kda: { ...emptyRoster },
-      winning_team: initialWinner,
+      winning_team: 'Red',
       score: `${redWins}:${blueWins}`,
     }));
 
     onToast(`직전 경기(${prevMatch.ck_name || 'CK'} ${prevMatch.set_number}세트)의 10인 로스터를 불러왔습니다.`);
   };
 
-  // 1-Click Swap Red & Blue Teams
   const handleSwapTeams = () => {
     setFormData((prev) => {
       const nextA = { ...prev.team_b };
@@ -285,8 +323,18 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       const nextBanA = [...prev.ban_b];
       const nextBanB = [...prev.ban_a];
       const nextWinner: 'Red' | 'Blue' = prev.winning_team === 'Red' ? 'Blue' : 'Red';
-      const redWins = seriesWinners.filter((w) => w === 'Red').length + (nextWinner === 'Red' ? 1 : 0);
-      const blueWins = seriesWinners.filter((w) => w === 'Blue').length + (nextWinner === 'Blue' ? 1 : 0);
+      
+      // Recalculate score after swap based on same series
+      const sameSeries = matches
+        .filter((m) => m.date === prev.date && m.ck_name.trim() === prev.ck_name.trim() && m.id !== prev.id);
+      let red = 0;
+      let blue = 0;
+      for (const m of sameSeries) {
+        if (m.winning_team === 'Red') red++;
+        else blue++;
+      }
+      if (nextWinner === 'Red') red++;
+      else blue++;
 
       return {
         ...prev,
@@ -299,15 +347,13 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         ban_a: nextBanA,
         ban_b: nextBanB,
         winning_team: nextWinner,
-        score: `${redWins}:${blueWins}`,
+        score: `${red}:${blue}`,
       };
     });
     onToast('Red팀과 Blue팀 로스터 배치가 맞교환(Swap)되었습니다.');
   };
 
-  // Unified Match Validation (with duplicate player & champion checks)
   const validateMatchForm = (matchData: Match): { isValid: boolean; errorMsg: string } => {
-    // 1. Check Passcode if not already admin
     if (!isAdmin) {
       const cleanPass = formPasscode.trim().toLowerCase();
       if (!cleanPass) {
@@ -318,7 +364,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       }
     }
 
-    // 2. Validate Wooriming presence
     const allPlayers: string[] = [
       ...(Object.values(matchData.team_a) as string[]),
       ...(Object.values(matchData.team_b) as string[]),
@@ -337,7 +382,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       };
     }
 
-    // 3. Player Duplicate Check (across 10 players)
     const playerCounts = new Map<string, number>();
     for (const p of allPlayers) {
       const trimmed = (p || '').trim();
@@ -350,7 +394,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       if (count > 1) dupPlayers.push(p);
     }
 
-    // 4. Champion Duplicate Check (across 10 champions in the match)
     const allChamps: string[] = [
       ...(Object.values(matchData.team_a_champs) as string[]),
       ...(Object.values(matchData.team_b_champs) as string[]),
@@ -417,7 +460,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     }
   };
 
-  // Smart [저장하고 다음 세트 작성]
   const handleSaveAndNextSet = () => {
     const val = validateMatchForm(formData);
     if (!val.isValid) {
@@ -430,8 +472,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
       onAdminLoginSuccess();
     }
 
-    const cleanCkName =
-      formData.ck_name.trim() || `${formData.date} CK 경기`;
+    const cleanCkName = formData.ck_name.trim() || `${formData.date} CK 경기`;
 
     const matchToSave: Match = {
       ...formData,
@@ -445,12 +486,10 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         onAddMatch(matchToSave);
       }
 
-      // Update series winners
       const nextWinners = [...seriesWinners, formData.winning_team as 'Red' | 'Blue'];
       setSeriesWinners(nextWinners);
 
       const nextSetNum = (Number(formData.set_number) || 1) + 1;
-      const initialWinner: 'Red' | 'Blue' = 'Red';
       const redWins = nextWinners.filter((w) => w === 'Red').length + 1;
       const blueWins = nextWinners.filter((w) => w === 'Blue').length;
 
@@ -459,7 +498,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         id: `m_${Date.now()}`,
         set_number: nextSetNum,
         score: `${redWins}:${blueWins}`,
-        winning_team: initialWinner,
+        winning_team: 'Red',
         team_a_kda: { ...emptyRoster },
         team_b_kda: { ...emptyRoster },
       }));
@@ -500,12 +539,11 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     <div className="space-y-6 animate-[fadeIn_0.2s]">
       {/* Top Banner Stats: Opponent Stats TOP 5 & Most Picked TOP 5 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* ⚔️ 맞라인 상대 승률 TOP 5 */}
         <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5 flex flex-col justify-between">
           <div>
             <div className="flex justify-between items-center mb-3">
               <h3 className="font-bold text-[14px] text-white flex items-center gap-2">
-                <span>⚔️</span>
+                <span>⚔</span>
                 <span>맞라인 상대 승률 TOP 5</span>
               </h3>
               <span className="text-[10px] text-[#8a8aa0] bg-[#1e1e2a] px-2.5 py-0.5 rounded-full border border-[#2a2a3a]">
@@ -562,7 +600,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
           </div>
         </div>
 
-        {/* 🏆 Most Picked */}
         <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-5">
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-bold text-[14px] text-white flex items-center gap-2">
@@ -605,7 +642,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         </div>
       </div>
 
-      {/* Filter & Action Controls Bar */}
       <div className="bg-[#12121a] border border-[#1e1e2a] rounded-[16px] p-4 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
         <div className="flex flex-wrap gap-2.5 w-full md:w-auto">
           <div className="relative">
@@ -652,7 +688,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         </div>
       </div>
 
-      {/* Match Records List (OP.GG / image_1.png Independent Card Layout) */}
       <div className="space-y-3.5">
         {filteredMatches.length === 0 ? (
           <div className="p-12 text-center text-[#62627a] bg-[#12121a]/80 border border-[#1e1e2a] rounded-[20px]">
@@ -679,7 +714,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
             const won = m.winning_team === wTeam;
             const format = m.match_format || '단판';
             const setNum = m.set_number || 1;
-            const winningTeamText = m.winning_team === 'Red' ? 'RED팀' : 'BLUE팀';
 
             const isWRed = wTeam === 'Red';
             const allyTeamKey: WinningTeam = isWRed ? 'Red' : 'Blue';
@@ -687,35 +721,14 @@ export const JournalTab: React.FC<JournalTabProps> = ({
 
             const allyRoster = isWRed ? m.team_a : m.team_b;
             const allyChamps = isWRed ? m.team_a_champs : m.team_b_champs;
-            const allyWon = m.winning_team === allyTeamKey;
-
             const enemyRoster = isWRed ? m.team_b : m.team_a;
             const enemyChamps = isWRed ? m.team_b_champs : m.team_a_champs;
+            const allyWon = m.winning_team === allyTeamKey;
             const enemyWon = m.winning_team === enemyTeamKey;
 
-            // Calculate score with Allied team score on left, Enemy team score on right
-            let scoreLeft = 0;
-            let scoreRight = 0;
-            if (m.score && m.score.includes(':')) {
-              const parts = m.score.split(':').map((s) => parseInt(s.trim(), 10) || 0);
-              const redScore = parts[0];
-              const blueScore = parts[1];
-              if (isWRed) {
-                // Ally is Red
-                scoreLeft = redScore;
-                scoreRight = blueScore;
-              } else {
-                // Ally is Blue
-                scoreLeft = blueScore;
-                scoreRight = redScore;
-              }
-            } else {
-              scoreLeft = won ? 1 : 0;
-              scoreRight = won ? 0 : 1;
-            }
-            const allyEnemyScoreText = `${scoreLeft} : ${scoreRight}`;
+            // FIXED: Use correctedScoreMap instead of m.score parsing
+            const allyEnemyScoreText = correctedScoreMap.get(m.id) || '1:0';
 
-            // 승/패에 따른 독립 카드 스타일 (배경 틴트, 테두리, 그림자)
             const cardBgClass = won
               ? 'bg-gradient-to-r from-[#0e213b]/95 via-[#0e192c]/95 to-[#0b1321]/95'
               : 'bg-gradient-to-r from-[#2c1218]/95 via-[#1d1016]/95 to-[#140b10]/95';
@@ -732,11 +745,9 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                 id={`match-${m.id}`}
                 className={`relative rounded-xl border ${cardBorderClass} ${cardBgClass} transition-all duration-200 overflow-hidden group`}
               >
-                {/* 왼쪽 사이드 액센트 바 */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${accentBarClass}`} />
 
                 <div className="p-3.5 pl-5 md:p-4.5 md:pl-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                  {/* 1. [왼쪽 영역] 날짜, CK명, 승/패 결과 뱃지, 세트 스코어 (무조건 아군 vs 적군 순서) */}
                   <div className="flex xl:flex-col justify-between xl:justify-center items-start gap-1 min-w-[140px] xl:w-[150px] border-b xl:border-b-0 xl:border-r border-white/10 pb-3 xl:pb-0 xl:pr-4 shrink-0">
                     <div className="space-y-0.5">
                       <div className="text-[11px] font-bold text-[#8a8aa0] tracking-wider uppercase">
@@ -772,9 +783,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. [중앙 영역] 우리밍_ 핵심 정보 (챔피언 이미지 + KDA + 평점 + 우리밍_ 닉네임) */}
                   <div className="flex items-center gap-4 flex-1 xl:px-4">
-                    {/* [챔피언 아이콘 (정사각형, 크게)] */}
                     <div className="relative shrink-0">
                       <ChampionIcon
                         name={champ || ''}
@@ -793,7 +802,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                       </span>
                     </div>
 
-                    {/* KDA + 평점 + 우리밍_ 닉네임 */}
                     <div className="flex flex-col justify-center gap-1">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[13px] font-extrabold text-white tracking-tight flex items-center gap-1">
@@ -806,7 +814,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                       </div>
 
                       <div className="flex items-baseline gap-2.5 flex-wrap">
-                        {/* KDA 큰 글씨 */}
                         {kdaInfo && kdaInfo.kills !== undefined ? (
                           <div className="text-[18px] md:text-[20px] font-black tracking-wide text-white">
                             <span>{kdaInfo.kills}</span>
@@ -821,7 +828,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                           </div>
                         )}
 
-                        {/* 평점 */}
                         {kdaInfo && (
                           <span
                             className={`text-[12px] font-extrabold px-2 py-0.5 rounded-md ${
@@ -839,10 +845,9 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                     </div>
                   </div>
 
-                  {/* 3. [우측 영역] 10인 로스터 [아군팀 5명 세로 배치] VS [적팀 5명 세로 배치] (총 2열 5행) */}
+                  {/* FIXED: 아군 왼쪽, 적팀 오른쪽 고정 */}
                   <div className="bg-[#07070d]/85 border border-white/10 rounded-[14px] p-2.5 sm:p-3 shrink-0">
                     <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      {/* 좌측 열: 아군팀 5명 */}
                       <div className="flex flex-col gap-1 min-w-[130px] sm:min-w-[150px]">
                         <div className="flex items-center justify-between pb-1 border-b border-white/10 mb-0.5">
                           <span
@@ -889,7 +894,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                         })}
                       </div>
 
-                      {/* 우측 열: 적팀 5명 */}
                       <div className="flex flex-col gap-1 min-w-[130px] sm:min-w-[150px] pl-2.5 sm:pl-3 border-l border-white/10">
                         <div className="flex items-center justify-between pb-1 border-b border-white/10 mb-0.5">
                           <span
@@ -928,7 +932,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. 관리 버튼 (수정, 삭제) */}
                   <div className="flex xl:flex-col items-center justify-end gap-1.5 shrink-0 pl-1">
                     <button
                       type="button"
@@ -949,7 +952,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   </div>
                 </div>
 
-                {/* 밴(Ban) 정보 리본 (Data Dragon 아이콘과 함께 세련되게 표시) */}
                 {(m.ban_a.filter(Boolean).length > 0 || m.ban_b.filter(Boolean).length > 0) && (
                   <div className="px-4 py-2 bg-black/50 border-t border-white/5 flex items-center gap-4 text-[11px] text-[#8a8aa0] flex-wrap">
                     <span className="font-extrabold text-[#6a6a80] text-[10px] tracking-wider uppercase">BANS:</span>
@@ -995,7 +997,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         )}
       </div>
 
-      {/* Full Champion Stats Modal */}
       {isChampsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-[fadeIn_0.15s]">
           <div className="w-full max-w-[520px] bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-6 max-h-[80vh] overflow-y-auto shadow-2xl">
@@ -1038,7 +1039,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         </div>
       )}
 
-      {/* Add / Edit Match Modal */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto bg-black/70 backdrop-blur-sm animate-[fadeIn_0.15s]">
           <div className="w-full max-w-[850px] bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-6 my-8 shadow-2xl">
@@ -1066,14 +1066,12 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               </div>
             )}
 
-            {/* Smart Action Toolbar */}
             <div className="mb-4 p-3 bg-[#0a0a12] border border-[#1e1e2a] rounded-[14px] flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleLoadPreviousSetRoster}
                   className="h-[32px] px-3.5 bg-[#8b5cf6]/15 hover:bg-[#8b5cf6]/25 border border-[#8b5cf6]/40 text-[#c4b5fd] rounded-full text-[11px] font-bold transition flex items-center gap-1.5"
-                  title="직전 세트의 10인 명단과 챔피언 배치를 복사해옵니다"
                 >
                   <Copy size={13} className="text-[#a78bfa]" />
                   <span>⚡ 이전 세트 10인 로스터 불러오기</span>
@@ -1082,19 +1080,15 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   type="button"
                   onClick={handleSwapTeams}
                   className="h-[32px] px-3.5 bg-[#1e1e2a] hover:bg-[#2a2a3a] border border-[#2a2a3a] text-[#c0c0d0] rounded-full text-[11px] font-bold transition flex items-center gap-1.5"
-                  title="Red팀과 Blue팀 5인을 서로 맞교환합니다"
                 >
                   <ArrowLeftRight size={13} className="text-[#38bdf8]" />
                   <span>🔄 Red ↔ Blue 팀 스왑</span>
                 </button>
               </div>
 
-              <div className="text-[11px] text-[#8a8aa0]">
-                중복 방지 유효성 검사 활성
-              </div>
+              <div className="text-[11px] text-[#8a8aa0]">중복 방지 유효성 검사 활성</div>
             </div>
 
-            {/* Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
               <div>
                 <label className="text-[11px] text-[#8a8aa0] mb-1 block">경기 일자</label>
@@ -1167,7 +1161,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               </div>
             </div>
 
-            {/* Smart Winner Selection & Cumulative Score */}
             <div className="mb-4 bg-[#0a0a10] border border-[#1e1e2a] rounded-[16px] p-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                 <div className="text-[12px] font-bold text-white flex items-center gap-1.5">
@@ -1226,7 +1219,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               </div>
             </div>
 
-            {/* Wooriming Fast Line Assignment Bar */}
             <div className="mb-4 bg-[#0a0a10] border border-[#222232] rounded-[14px] p-3 flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-bold text-white flex items-center gap-1.5">
@@ -1245,7 +1237,7 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   </span>
                 ) : (
                   <span className="text-[11px] font-semibold text-[#ef4444] bg-[#ef4444]/15 px-2.5 py-0.5 rounded-full border border-[#ef4444]/30">
-                    ⚠️ 아직 미배치됨 (전적 산출 필수)
+                    ⚠ 아직 미배치됨 (전적 산출 필수)
                   </span>
                 )}
               </div>
@@ -1299,7 +1291,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               </div>
             </div>
 
-            {/* Team Roster Inputs */}
             {(['team_a', 'team_b'] as const).map((teamKey) => {
               const isRed = teamKey === 'team_a';
               const champsKey = `${teamKey}_champs` as const;
@@ -1341,7 +1332,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                             {LINE_LABELS[lineKey]}
                           </span>
 
-                          {/* Player Input with Autocomplete & Duplicate Highlight */}
                           <div className="relative">
                             <input
                               value={playerName}
@@ -1373,7 +1363,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                             )}
                           </div>
 
-                          {/* Champ Input with Autocomplete & Duplicate Highlight */}
                           <div className="relative">
                             <input
                               value={champName}
@@ -1403,7 +1392,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                             )}
                           </div>
 
-                          {/* KDA */}
                           <input
                             value={formData[kdaKey][lineKey]}
                             onChange={(e) =>
@@ -1420,7 +1408,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                             }`}
                           />
 
-                          {/* Quick 밍 button */}
                           <button
                             type="button"
                             onClick={() => handleSetWooriming(teamKey, lineKey)}
@@ -1437,7 +1424,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                     })}
                   </div>
 
-                  {/* Bans */}
                   <div className="mt-3.5 flex flex-wrap items-center gap-1.5 border-t border-[#1e1e2a] pt-3">
                     <span className="text-[11px] text-[#6a6a80] mr-2 font-medium">밴 (5개):</span>
                     {formData[banKey].map((banItem, bIdx) => (
@@ -1459,7 +1445,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               );
             })}
 
-            {/* Duplicate Warning Banner */}
             {(duplicatePlayers.size > 0 || duplicateChamps.size > 0) && (
               <div className="mb-4 p-3 bg-[#ef4444]/15 border border-[#ef4444]/40 rounded-[12px] text-[#ef4444] text-[12px] flex items-center gap-2 animate-[fadeIn_0.15s]">
                 <AlertCircle size={16} className="shrink-0" />
@@ -1471,7 +1456,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               </div>
             )}
 
-            {/* In-Modal Error Banner */}
             {formError && (
               <div className="mt-4 p-3 bg-[#ef4444]/15 border border-[#ef4444]/40 rounded-[12px] text-[#ef4444] text-[12px] flex items-center gap-2 animate-[fadeIn_0.15s]">
                 <AlertCircle size={16} className="shrink-0" />
@@ -1479,7 +1463,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               </div>
             )}
 
-            {/* Passcode & Action Buttons */}
             <div className="mt-4 flex flex-wrap gap-3 items-center justify-between border-t border-[#1e1e2a] pt-4">
               {!isAdmin ? (
                 <div className="flex items-center gap-2 flex-1 max-w-[340px]">
@@ -1525,7 +1508,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                   type="button"
                   onClick={handleSaveAndNextSet}
                   className="h-[36px] px-4 bg-gradient-to-r from-[#8b5cf6] to-[#6366f1] hover:from-[#7c3aed] hover:to-[#4f46e5] text-white rounded-full text-[12px] font-bold shadow transition flex items-center gap-1.5"
-                  title="현재 세트를 저장하고 10인 로스터를 유지한 채 다음 세트 작성을 이어갑니다"
                 >
                   <FastForward size={14} />
                   <span>저장하고 다음 세트 작성 (⚡)</span>
@@ -1544,15 +1526,13 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         </div>
       )}
 
-      {/* Opponent Detail Modal (맞라인 상대 전적 상세 모달) */}
       {selectedOpponent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-[fadeIn_0.15s]">
           <div className="w-full max-w-[640px] bg-[#12121a] border border-[#1e1e2a] rounded-[24px] p-6 max-h-[85vh] flex flex-col shadow-2xl">
-            {/* Header */}
             <div className="flex justify-between items-center pb-4 border-b border-[#1e1e2a]">
               <div className="flex items-center gap-3">
                 <div className="w-[42px] h-[42px] rounded-full bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 flex items-center justify-center text-[18px]">
-                  ⚔️
+                  ⚔
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -1575,7 +1555,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
               </button>
             </div>
 
-            {/* Match History List */}
             <div className="overflow-y-auto my-4 space-y-2.5 pr-1 max-h-[480px]">
               {selectedOpponent.matches.map((m, idx) => (
                 <div
@@ -1591,7 +1570,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
                       <span className="text-[#a78bfa] font-bold">{m.setNumber}세트</span>
                     </div>
                     <div className="flex items-center gap-2.5 text-[12px] flex-wrap">
-                      {/* Wooriming */}
                       <div className="flex items-center gap-1.5 bg-[#12121c] border border-[#222234] px-2.5 py-1 rounded-lg">
                         <ChampionIcon name={m.myChamp} size={20} shape="square" />
                         <span className="text-white font-bold text-[11px]">우리밍_</span>
@@ -1601,7 +1579,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
 
                       <span className="text-[#6a6a80] font-black text-[11px]">VS</span>
 
-                      {/* Opponent */}
                       <div className="flex items-center gap-1.5 bg-[#12121c] border border-[#222234] px-2.5 py-1 rounded-lg">
                         <ChampionIcon name={m.opponentChamp} size={20} shape="square" />
                         <span className="text-white font-bold text-[11px]">{selectedOpponent.name}</span>
@@ -1644,7 +1621,6 @@ export const JournalTab: React.FC<JournalTabProps> = ({
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-[fadeIn_0.15s]">
           <div className="w-full max-w-[360px] bg-[#12121a] border border-[#1e1e2a] rounded-[20px] p-6 shadow-2xl">
