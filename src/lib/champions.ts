@@ -1,10 +1,14 @@
 /**
  * src/lib/champions.ts
- * FINAL - 중복 제거, 올라프/노틸러스/벡스/아크샨 복구, parseKdaString 복구
+ * FINAL - 자헨/유나라/멜 복구 (15.11.1 버전으로)
  */
 
-const DDRAGON_VERSION = "14.24.1";
+const DDRAGON_VERSION = "15.11.1";
 const DDRAGON_BASE = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
+
+const CUSTOM_ICONS: Record<string, string> = {
+  "Locke": "/icons/locke.png",
+};
 
 export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "가렌": "Garen", "갈리오": "Galio", "갱플랭크": "Gangplank", "그라가스": "Gragas",
@@ -51,7 +55,7 @@ export const CHAMPION_KR_TO_EN: Record<string, string> = {
   "트위스티드 페이트": "TwistedFate", "트페": "TwistedFate", "트위치": "Twitch",
   "티모": "Teemo", "파이크": "Pyke", "판테온": "Pantheon", "피들스틱": "Fiddlesticks", "피즈": "Fizz",
   "하이머딩거": "Heimerdinger", "헤카림": "Hecarim", "흐웨이": "Hwei",
-  "멜": "Mel", "윤아라": "Yunara", "유나라": "Yunara", "자헨": "Yunara", "자야": "Xayah", "자야헨": "Xayah", "모데": "Mordekaiser",
+  "멜": "Mel", "윤아라": "Yunara", "유나라": "Yunara", "자헨": "Yunara", "자야헨": "Xayah", "모데": "Mordekaiser",
 };
 
 export const TOTAL_CHAMPIONS = 173;
@@ -80,13 +84,19 @@ export function getChampionEnName(krName: string): string | null {
 export function getChampionIconUrl(krName: string): string | null {
   const enName = getChampionEnName(krName);
   if (!enName) return null;
+  if (CUSTOM_ICONS[enName]) return CUSTOM_ICONS[enName];
   return `${DDRAGON_BASE}/${enName}.png`;
 }
 
 export function getChampionFallbackUrl(krName: string): string | null {
   const enName = getChampionEnName(krName);
   if (!enName) return null;
-  return `https://ddragon.leagueoflegends.com/cdn/13.1.1/img/champion/${enName}.png`;
+  if (CUSTOM_ICONS[enName]) return CUSTOM_ICONS[enName];
+  // 신챔은 community dragon으로 fallback
+  if (["Mel", "Yunara", "Locke"].includes(enName)) {
+    return `https://cdn.communitydragon.org/latest/champion/${enName}/square`;
+  }
+  return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${enName}.png`;
 }
 
 export function parseKdaString(kda: string): { kills: number; deaths: number; assists: number } | null {
@@ -100,7 +110,6 @@ export function parseKdaString(kda: string): { kills: number; deaths: number; as
         assists: parseInt(parts[2]) || 0,
       };
     }
-    // "3/1/5" 형식
     const m = kda.match(/(\d+)\s*\/\s*(\d+)\s*\/\s*(\d+)/);
     if (m) {
       return { kills: parseInt(m[1]), deaths: parseInt(m[2]), assists: parseInt(m[3]) };
