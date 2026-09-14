@@ -38,14 +38,6 @@ declare global {
 export default function App() {
   const [matches, setMatches] = useState<Match[]>(() => {
     try {
-      // 삭제된 ID 블랙리스트 로드
-      try {
-        const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
-        if (Array.isArray(deleted)) {
-          // deletedIdsRef는 아직 초기화 전이라 직접 접근 불가, useEffect에서 로드
-        }
-      } catch {}
-      
       const alreadyPurged = localStorage.getItem('riming_mock_purged_v1');
       if (!alreadyPurged) {
         localStorage.removeItem(STORAGE_KEY_MATCHES);
@@ -65,20 +57,6 @@ export default function App() {
     }
     return getInitialMatches();
   });
-  
-  // 삭제된 ID 블랙리스트 초기화
-  useEffect(() => {
-    try {
-      const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
-      if (Array.isArray(deleted)) {
-        deleted.forEach((id: string) => deletedIdsRef.current.add(String(id)));
-        // 현재 matches에서도 필터링
-        if (deleted.length > 0) {
-          setMatches(prev => prev.filter(m => !deletedIdsRef.current.has(String(m.id))));
-        }
-      }
-    } catch {}
-  }, []);
 
   const [currentTab, setCurrentTab] = useState<string>('main');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
@@ -95,7 +73,7 @@ export default function App() {
   const currentTrackRef = useRef<BgmTrack>(BGM_PLAYLIST[0]);
   const [currentTrack, setCurrentTrack] = useState<BgmTrack>(BGM_PLAYLIST[0]);
   const isQueueInitRef = useRef<boolean>(false);
-  const deletedIdsRef = useRef<Set<string>>(new Set()); // 삭제된 ID 블랙리스트 - 다시 생기는 버그 방지
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   if (!isQueueInitRef.current) {
     const initialQueue = createBgmQueue(BGM_PLAYLIST);
@@ -159,28 +137,47 @@ export default function App() {
     try {
       const { matches: remoteMatches, source } = await fetchAllMatchesFromApi();
       if (Array.isArray(remoteMatches)) {
-        // 삭제된 ID는 클라우드에서 다시 와도 필터링 - 부활 버그 완벽 차단
-        const filtered = remoteMatches.filter(m => !deletedIdsRef.current.has(String(m.id)));
-        if (filtered.length !== remoteMatches.length) {
-          console.log(`[Cloud Sync] ${remoteMatches.length - filtered.length}개 삭제된 경기 필터링됨`);
-        }
+        // 블랙리스트 필터 - 모바일에서 삭제해도 PC에서 부활 방지
+        let filtered = remoteMatches;
+        try {
+          const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
+          if (Array.isArray(deleted) && deleted.length > 0) {
+            deleted.forEach((id: string) => deletedIdsRef.current.add(String(id)));
+            filtered = remoteMatches.filter(m => !deletedIdsRef.current.has(String(m.id)));
+            if (filtered.length !== remoteMatches.length) {
+              console.log(`[Sync] ${remoteMatches.length - filtered.length}개 삭제된 경기 필터링`);
+            }
+          }
+        } catch {}
         setMatches(filtered);
         setSyncStatus('synced');
-        console.log(`[Cloud Sync] Synchronized ${filtered.length} matches from ${source}`);
+        console.log(`[Cloud Sync] ${filtered.length} matches from ${source} (원본 ${remoteMatches.length})`);
+        try {
+          localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(filtered));
+        } catch {}
       }
     } catch (err) {
-      console.warn('[Cloud Sync] Failed to sync:', err);
+      console.warn('[Cloud Sync] Failed:', err);
       setSyncStatus('error');
     }
   }, []);
 
   useEffect(() => {
+    // 초기 블랙리스트 로드
+    try {
+      const deleted = JSON.parse(localStorage.getItem('deleted_ids') || '[]');
+      if (Array.isArray(deleted)) {
+        deleted.forEach((id: string) => deletedIdsRef.current.add(String(id)));
+      }
+    } catch {}
+    // 초기 동기화 - PC와 모바일 동일 데이터로 맞춤
     syncFromApi(false);
+    // 30초마다 동기화 (블랙리스트 필터링 포함)
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncFromApi(true);
       }
-    }, 20000);
+    }, 30000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         syncFromApi(true);
@@ -481,7 +478,7 @@ export default function App() {
       } else {
         showToast('경기 등록 완료');
       }
-      // 자동 동기화 제거 - 삭제 부활 버그 방지
+      // 동기화는 30초 interval에서 블랙리스트 필터링하며 처리
     } catch (err) {
       console.warn('[MatchApi] POST match failed:', err);
     }
@@ -499,7 +496,7 @@ export default function App() {
         showToast('경기 수정 완료 (로컬 캐시 보관됨) - ' + (res.error || ''));
       }
       // FIX: 즉시 동기화하면 D1 반영 전 옛날 데이터로 덮어씌워져서 다시 블루로 돌아오는 현상 방지
-      // 자동 동기화 제거 - 삭제 부활 버그 방지
+      // 동기화는 30초 interval에서 블랙리스트 필터링하며 처리
     } catch (err) {
       console.warn('[MatchApi] PUT match failed:', err);
       showToast('로컬에 수정됨 (클라우드 동기화 실패)');
@@ -516,7 +513,7 @@ export default function App() {
       } else {
         showToast('경기 삭제 완료');
       }
-      // 자동 동기화 제거 - 삭제 부활 버그 방지
+      // 동기화는 30초 interval에서 블랙리스트 필터링하며 처리
     } catch (err) {
       console.warn('[MatchApi] DELETE match failed:', err);
     }
