@@ -479,29 +479,18 @@ export default function App() {
   };
 
   const handleDeleteMatch = async (id: string) => {
-    // 로컬에서 즉시 삭제
     const remaining = matches.filter((m) => String(m.id) !== String(id));
     setMatches(remaining);
-    // 로컬 스토리지 즉시 반영
-    try {
-      localStorage.setItem(STORAGE_KEY_MATCHES, JSON.stringify(remaining));
-      localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(remaining));
-    } catch {}
-    
     try {
       const res = await deleteMatchOnApi(id, remaining);
       if (res.success) {
-        showToast('경기 삭제 완료');
-        // 성공했을 때만 2초 후 동기화 (D1 반영 기다림) - 실패하면 동기화 안 해서 되살아나는 버그 방지
-        setTimeout(() => syncFromApi(true), 2000);
+        showToast('경기 삭제 완료 (Worker 클라우드 반영 ☁)');
       } else {
-        showToast('경기 삭제 완료 (로컬)');
-        // 실패하면 동기화 안 함 - 삭제된 게 다시 생기는 버그 원인이었음
+        showToast('경기 삭제 완료 (로컬 캐시 보관됨)');
       }
+      setTimeout(() => syncFromApi(true), 1500);
     } catch (err) {
       console.warn('[MatchApi] DELETE match failed:', err);
-      showToast('경기 삭제 완료 (로컬)');
-      // 에러 시에도 동기화 안 함
     }
   };
 
