@@ -231,7 +231,27 @@ export const JournalTab: React.FC<JournalTabProps> = ({
     setIsEditModalOpen(true);
   };
 
+  // Helper: 같은 날짜+CK에서 현재 세트보다 이전 세트들의 승자 목록만 추출 (자기 자신 제외)
+  const getPrevWinnersForEdit = (target: Match, all: Match[]): ('Red' | 'Blue')[] => {
+    const sameSeries = all
+      .filter(
+        (x) =>
+          String(x.id) !== String(target.id) &&
+          x.date === target.date &&
+          (x.ck_name || '').trim() === (target.ck_name || '').trim() &&
+          (Number(x.set_number) || 1) < (Number(target.set_number) || 1)
+      )
+      .sort((a, b) => (Number(a.set_number) || 1) - (Number(b.set_number) || 1));
+    return sameSeries.map((x) => x.winning_team as 'Red' | 'Blue');
+  };
+
   const handleOpenEditModal = (m: Match) => {
+    // 수정 모달 열 때는 이전 세트 승자들만 seriesWinners로 설정해야 1세트=1:0, 2세트=2:0 같은 누적 스코어가 정확해짐
+    const prevWinners = getPrevWinnersForEdit(m, matches);
+    setSeriesWinners(prevWinners);
+
+    // 수정 시 스코어는 기존 스코어 유지하되, 혹시 이전 승자 기반으로 다시 계산할 수 있도록 기존 값 그대로 사용
+    // (사용자가 승리 팀을 바꾸면 handleSelectWinner에서 prevWinners 기반으로 재계산됨)
     setFormData({
       ...m,
       team_a: { ...m.team_a },
